@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Asistencia</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Página de Login -->
+    <div id="loginPage" class="page active">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="logo">
+                        <i class="fas fa-graduation-cap"></i>
+                        <h1>Panel Docente</h1>
+                    </div>
+                    <p>Control de Asistencia Docente</p>
+                </div>
+                
+                <form id="loginForm" class="login-form">
+                    <div class="input-group">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" placeholder="Correo electrónico" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="Contraseña" required>
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        <span>Iniciar Sesión</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+                
+                <div class="login-footer">
+                    <p>¿No tienes cuenta? <a href="#" onclick="showRegister()">Regístrate aquí</a></p>
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">¿Eres estudiante?</p>
+                        <a href="/student-dashboard" style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            color: var(--secondary-color);
+                            text-decoration: none;
+                            font-weight: 500;
+                            padding: 0.5rem 1rem;
+                            border: 1px solid var(--secondary-color);
+                            border-radius: var(--border-radius);
+                            transition: var(--transition);
+                            font-size: 0.875rem;
+                        " onmouseover="this.style.background='var(--secondary-color)'; this.style.color='var(--white)'" onmouseout="this.style.background='transparent'; this.style.color='var(--secondary-color)'">
+                            <i class="fas fa-user-graduate"></i>
+                            Acceder como Estudiante
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Página de Registro -->
+    <div id="registerPage" class="page">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="logo">
+                        <i class="fas fa-graduation-cap"></i>
+                        <h1>Control Asistencia</h1>
+                    </div>
+                    <p>Crear cuenta de docente</p>
+                </div>
+                
+                <form id="registerForm" class="login-form">
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="fullName" placeholder="Nombre completo" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="regEmail" placeholder="Correo electrónico" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="regPassword" placeholder="Contraseña" required>
+                        <button type="button" class="toggle-password" onclick="toggleRegPassword()">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-school"></i>
+                        <input type="text" id="institution" placeholder="Institución educativa" required>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        <span>Crear Cuenta</span>
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </form>
+                
+                <div class="login-footer">
+                    <p>¿Ya tienes cuenta? <a href="#" onclick="showLogin()">Inicia sesión aquí</a></p>
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">¿Eres estudiante?</p>
+                        <a href="/student-dashboard" style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            color: var(--secondary-color);
+                            text-decoration: none;
+                            font-weight: 500;
+                            padding: 0.5rem 1rem;
+                            border: 1px solid var(--secondary-color);
+                            border-radius: var(--border-radius);
+                            transition: var(--transition);
+                            font-size: 0.875rem;
+                        " onmouseover="this.style.background='var(--secondary-color)'; this.style.color='var(--white)'" onmouseout="this.style.background='transparent'; this.style.color='var(--secondary-color)'">
+                            <i class="fas fa-user-graduate"></i>
+                            Acceder como Estudiante
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Principal -->
+    <div id="dashboardPage" class="page">
+        <div class="dashboard">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="logo">
+                        <i class="fas fa-graduation-cap"></i>
+                        <h2>ControlAsistencia</h2>
+                    </div>
+                </div>
+                
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-item active" onclick="showSection('overview')">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Resumen</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="showSection('students')">
+                        <i class="fas fa-users"></i>
+                        <span>Alumnos</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="showSection('attendance')">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Asistencia</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="showSection('courses')">
+                        <i class="fas fa-book"></i>
+                        <span>Unidades Didácticas</span>
+                    </a>
+                    <a href="#" class="nav-item" onclick="showSection('reports')">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Reportes</span>
+                    </a>
+                </nav>
+                
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name" id="userName">Profesor</span>
+                            <span class="user-email" id="userEmail">profesor@email.com</span>
+                        </div>
+                    </div>
+                    <button class="logout-btn" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Header -->
+                <header class="main-header">
+                        <div class="header-left">
+                            <h1 id="pageTitle">Resumen</h1>
+                            <p id="pageSubtitle">Bienvenido al panel de control</p>
+                        </div>
+                        <div class="header-right">
+                            <div class="date-time" id="dateTime"></div>
+                            <a id="generateQrBtn" href="/student" class="btn-secondary" style="margin-left:0.75rem; display:none; align-items:center; gap:0.5rem; padding:0.6rem 0.9rem; border-radius:8px; text-decoration:none;">
+                                <i class="fas fa-qrcode"></i>
+                                <span>Generar QR</span>
+                            </a>
+                        </div>
+                </header>
+                
+                <!-- Content Sections -->
+                <div class="content">
+                    <!-- Overview Section -->
+                    <div id="overviewSection" class="section active">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalStudents">0</h3>
+                                    <p>Total Alumnos</p>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="todayAttendance">0%</h3>
+                                    <p>Asistencia Hoy</p>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-book"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalCourses">0</h3>
+                                    <p>Unidades Didácticas</p>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="avgAttendance">0%</h3>
+                                    <p>Promedio General</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="recent-activity">
+                            <h2>Actividad Reciente</h2>
+                            <div class="activity-list" id="recentActivity">
+                                <!-- Activity items will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Students Section -->
+                    <div id="studentsSection" class="section">
+                        <div class="section-header">
+                            <h2>Gestión de Alumnos</h2>
+                            <button class="btn-primary" onclick="showAddStudentModal()">
+                                <i class="fas fa-plus"></i>
+                                Agregar Alumno
+                            </button>
+                        </div>
+                        
+                        <div class="students-grid" id="studentsGrid">
+                            <!-- Students will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Attendance Section -->
+                    <div id="attendanceSection" class="section">
+                        <div class="section-header">
+                            <h2>Control de Asistencia</h2>
+                            <div class="attendance-controls">
+                                <select id="courseSelect" class="select-input">
+                                    <option value="">Seleccionar Unidad Didáctica</option>
+                                </select>
+                                <button class="btn-primary" onclick="openCameraForAttendance()">
+                                    <i class="fas fa-camera"></i>
+                                    Abrir Cámara (QR)
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Cámara y preview para escaneo QR -->
+                        <div id="cameraOverlay" style="display:none;margin-top:1rem;">
+                            <div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;">
+                                <div style="flex:1;min-width:280px;display:flex;align-items:center;justify-content:center;">
+                                    <video id="cameraVideo" autoplay playsinline style="width:100%;max-width:640px;border-radius:8px;background:#000;"></video>
+                                    <canvas id="cameraCanvas" style="display:none"></canvas>
+                                </div>
+                                <div style="width:320px;">
+                                    <div style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border-color);">
+                                        <h3 style="margin-bottom:0.5rem;color:var(--text-primary);">Escaneo QR</h3>
+                                        <p id="scanResult" style="color:var(--text-secondary);min-height:60px;">Esperando escaneo...</p>
+                                        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                                            <button class="btn-primary" id="startCameraBtn" onclick="openCameraForAttendance()">Iniciar</button>
+                                            <button class="btn-secondary" id="stopCameraBtn" onclick="stopCamera()">Detener</button>
+                                            <a href="/student" class="btn-secondary" style="margin-left:auto;">Generar QR (estudiantes)</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="attendance-calendar" id="attendanceCalendar" style="margin-top:1rem;">
+                            <!-- Calendar will be generated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Courses Section -->
+                    <div id="coursesSection" class="section">
+                        <div class="section-header">
+                            <h2>Unidades Didácticas</h2>
+                            <button class="btn-primary" onclick="showAddCourseModal()">
+                                <i class="fas fa-plus"></i>
+                                Nueva Unidad
+                            </button>
+                        </div>
+                        
+                        <div class="courses-grid" id="coursesGrid">
+                            <!-- Courses will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Reports Section -->
+                    <div id="reportsSection" class="section">
+                        <div class="section-header">
+                            <h2>Reportes y Estadísticas</h2>
+                            <div class="report-controls">
+                                <select id="reportPeriod" class="select-input">
+                                    <option value="week">Esta Semana</option>
+                                    <option value="month">Este Mes</option>
+                                    <option value="semester">Este Semestre</option>
+                                </select>
+                                <button class="btn-secondary" onclick="generateReport()">
+                                    <i class="fas fa-download"></i>
+                                    Exportar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="reports-content">
+                            <div class="chart-container">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="addStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Agregar Alumno</h3>
+                <button class="close-btn" onclick="closeModal('addStudentModal')">&times;</button>
+            </div>
+            <form id="addStudentForm" class="modal-form">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="studentName" required>
+                </div>
+                <div class="form-group">
+                    <label>Número de Identificación</label>
+                    <input type="text" id="studentId" required>
+                </div>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="studentEmail">
+                </div>
+                <div class="form-group">
+                    <label>Teléfono</label>
+                    <input type="tel" id="studentPhone">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addStudentModal')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Agregar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addCourseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nueva Unidad Didáctica</h3>
+                <button class="close-btn" onclick="closeModal('addCourseModal')">&times;</button>
+            </div>
+            <form id="addCourseForm" class="modal-form">
+                <div class="form-group">
+                    <label>Nombre de la Unidad</label>
+                    <input type="text" id="courseName" required>
+                </div>
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea id="courseDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Horario</label>
+                    <input type="text" id="courseSchedule" placeholder="Ej: Lunes y Miércoles 8:00-10:00">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addCourseModal')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Crear</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/script.js"></script>
+</body>
+</html>

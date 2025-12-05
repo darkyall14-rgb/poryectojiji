@@ -1,0 +1,1079 @@
+const firebaseConfig = {
+        apiKey: "AIzaSyBPTiZPuy5wwR5VcmQvECaCI0QP4MF-n6w",
+        authDomain: "app-z-9ad8d.firebaseapp.com",
+        databaseURL: "https://app-z-9ad8d-default-rtdb.firebaseio.com",
+        projectId: "app-z-9ad8d",
+        storageBucket: "app-z-9ad8d.firebasestorage.app",
+        messagingSenderId: "699960964593",
+        appId: "1:699960964593:web:c4dbf134ef44e71f66c050"
+    };
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const database = firebase.database();
+
+// Variables globales
+let currentUser = null;
+let students = [];
+let courses = [];
+let attendanceRecords = [];
+let editingStudentKey = null;
+let cameraStream = null;
+let scanInterval = null;
+let qrScannerEnabled = false;
+let currentYear = new Date().getFullYear();
+
+// API helper (fallback to Firebase on error)
+async function apiFetch(path, options = {}) {
+    const resp = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (resp.status === 204) return null;
+    return resp.json();
+}
+
+// Inicialización de la aplicación
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+    setupEventListeners();
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+});
+
+// Inicializar la aplicación
+function initializeApp() {
+    // Verificar si hay un usuario autenticado
+    auth.onAuthStateChanged((user) => {
+        // Toggle visibility of Generate QR button in header
+        const genBtn = document.getElementById('generateQrBtn');
+        if (genBtn) genBtn.style.display = user ? '' : 'none';
+
+        if (user) {
+            currentUser = user;
+            showDashboard();
+            loadUserData();
+        } else {
+            currentUser = null;
+            showLogin();
+        }
+    });
+}
+
+// Configurar event listeners
+function setupEventListeners() {
+    // Login form
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    
+    // Register form
+    document.getElementById('registerForm').addEventListener('submit', handleRegister);
+    
+    // Add student form
+    document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
+    
+    // Add course form
+    document.getElementById('addCourseForm').addEventListener('submit', handleAddCourse);
+    
+    // Close modals when clicking outside
+    window.addEventListener('click', function(event) {
+        if (event.target.classList.contains('modal')) {
+            closeAllModals();
+        }
+    });
+}
+
+// Manejar login
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    try {
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        currentUser = userCredential.user;
+        showDashboard();
+        loadUserData();
+        showNotification('Inicio de sesión exitoso', 'success');
+    } catch (error) {
+        showNotification('Error al iniciar sesión: ' + error.message, 'error');
+    }
+}
+
+// Manejar registro
+async function handleRegister(e) {
+    e.preventDefault();
+    
+    const fullName = document.getElementById('fullName').value;
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const institution = document.getElementById('institution').value;
+    
+    try {
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        currentUser = userCredential.user;
+        
+        // Guardar información adicional del usuario
+        await database.ref('teachers/' + currentUser.uid).set({
+            fullName: fullName,
+            email: email,
+            institution: institution,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Crear unidades didácticas predefinidas
+        const courses = [
+            {
+                name: "Algoritmos y Estructuras de Datos",
+                description: "Fundamentos de algoritmos, complejidad computacional y estructuras de datos avanzadas",
+                schedule: "Lunes y Miércoles 8:00-10:00",
+                instructor: "Dr. García",
+                room: "Aula 201"
+            },
+            {
+                name: "Bases de Datos",
+                description: "Diseño, implementación y administración de sistemas de gestión de bases de datos",
+                schedule: "Martes y Jueves 10:00-12:00",
+                instructor: "Dra. Martínez",
+                room: "Laboratorio 3"
+            },
+            {
+                name: "Desarrollo de Software",
+                description: "Metodologías de desarrollo, patrones de diseño y arquitectura de software",
+                schedule: "Viernes 14:00-17:00",
+                instructor: "Ing. López",
+                room: "Sala de Computación"
+            }
+        ];
+
+        // Crear cada unidad didáctica
+        for (const course of courses) {
+            const courseRef = database.ref('teachers/' + currentUser.uid + '/courses').push();
+            await courseRef.set({
+                ...course,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                isDefault: true
+            });
+        }
+
+        // Crear algunos estudiantes de ejemplo
+        const sampleStudents = [
+            {
+                name: "Ana García",
+                studentId: "2024001",
+                email: "ana.garcia@estudiante.com",
+                phone: "+57 300 123 4567"
+            },
+            {
+                name: "Carlos López",
+                studentId: "2024002",
+                email: "carlos.lopez@estudiante.com",
+                phone: "+57 300 234 5678"
+            },
+            {
+                name: "María Rodríguez",
+                studentId: "2024003",
+                email: "maria.rodriguez@estudiante.com",
+                phone: "+57 300 345 6789"
+            },
+            {
+                name: "José Martínez",
+                studentId: "2024004",
+                email: "jose.martinez@estudiante.com",
+                phone: "+57 300 456 7890"
+            }
+        ];
+
+        // Crear cada estudiante de ejemplo
+        for (const student of sampleStudents) {
+            const studentRef = database.ref('teachers/' + currentUser.uid + '/students').push();
+            await studentRef.set({
+                ...student,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                isSample: true
+            });
+        }
+        
+        showDashboard();
+        loadUserData();
+        showNotification('Cuenta creada exitosamente', 'success');
+    } catch (error) {
+        showNotification('Error al crear cuenta: ' + error.message, 'error');
+    }
+}
+
+// Cargar datos del usuario
+async function loadUserData() {
+    if (!currentUser) return;
+    
+    try {
+        // Cargar información del profesor
+        const teacherSnapshot = await database.ref('teachers/' + currentUser.uid).once('value');
+        if (teacherSnapshot.exists()) {
+            const teacherData = teacherSnapshot.val();
+            document.getElementById('userName').textContent = teacherData.fullName;
+            document.getElementById('userEmail').textContent = teacherData.email;
+        }
+        
+        // Cargar estudiantes
+        await loadStudents();
+        
+        // Cargar cursos
+        await loadCourses();
+        
+        // Cargar registros de asistencia
+        await loadAttendanceRecords();
+        
+        // Actualizar estadísticas
+        updateStats();
+        
+    } catch (error) {
+        console.error('Error loading user data:', error);
+        showNotification('Error al cargar datos', 'error');
+    }
+}
+
+// Cargar estudiantes
+async function loadStudents() {
+    try {
+        // Source of truth: Firebase (scoped by teacher)
+        const snapshot = await database.ref('teachers/' + currentUser.uid + '/students').once('value');
+        students = [];
+        if (snapshot.exists()) {
+            const studentsData = snapshot.val();
+            Object.keys(studentsData).forEach(key => {
+                students.push({ id: key, ...studentsData[key] });
+            });
+            renderStudents();
+            return;
+        }
+        // If empty in Firebase, fallback to API
+        try {
+            students = await apiFetch('/api/students');
+        } catch (_) {
+            students = [];
+        }
+        renderStudents();
+    } catch (fbError) {
+        console.error('Error loading students:', fbError);
+        try {
+            students = await apiFetch('/api/students');
+            renderStudents();
+        } catch (apiErr) {
+            console.error('Error loading students from API:', apiErr);
+        }
+    }
+}
+
+// Cargar cursos
+async function loadCourses() {
+    try {
+        // Source of truth: Firebase (scoped by teacher)
+        const snapshot = await database.ref('teachers/' + currentUser.uid + '/courses').once('value');
+        courses = [];
+        if (snapshot.exists()) {
+            const coursesData = snapshot.val();
+            Object.keys(coursesData).forEach(key => {
+                courses.push({ id: key, ...coursesData[key] });
+            });
+            renderCourses();
+            updateCourseSelect();
+            return;
+        }
+        // If empty in Firebase, fallback to API
+        try {
+            courses = await apiFetch('/api/courses');
+        } catch (_) {
+            courses = [];
+        }
+        renderCourses();
+        updateCourseSelect();
+    } catch (fbError) {
+        console.error('Error loading courses:', fbError);
+        try {
+            courses = await apiFetch('/api/courses');
+            renderCourses();
+            updateCourseSelect();
+        } catch (apiErr) {
+            console.error('Error loading courses from API:', apiErr);
+        }
+    }
+}
+
+// Cargar registros de asistencia
+async function loadAttendanceRecords() {
+    try {
+        // Try API all attendance
+        attendanceRecords = await apiFetch('/api/attendance');
+        renderAttendanceCalendar();
+    } catch (error) {
+        try {
+            const snapshot = await database.ref('teachers/' + currentUser.uid + '/attendance').once('value');
+            attendanceRecords = [];
+            if (snapshot.exists()) {
+                const attendanceData = snapshot.val();
+                Object.keys(attendanceData).forEach(key => {
+                    attendanceRecords.push({ id: key, ...attendanceData[key] });
+                });
+            }
+            renderAttendanceCalendar();
+        } catch (fbError) {
+            console.error('Error loading attendance records:', fbError);
+        }
+    }
+}
+
+// Manejar agregar estudiante
+async function handleAddStudent(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('studentName').value;
+    const studentId = document.getElementById('studentId').value;
+    const email = document.getElementById('studentEmail').value;
+    const phone = document.getElementById('studentPhone').value;
+    
+    try {
+        // Directly add or update the student in Firebase Realtime Database (source of truth)
+        if (!currentUser || !currentUser.uid) throw new Error('Usuario no autenticado');
+        const studentsRef = database.ref('teachers/' + currentUser.uid + '/students');
+
+        if (editingStudentKey) {
+            // Update existing
+            await studentsRef.child(editingStudentKey).update({
+                name: name,
+                studentId: studentId,
+                email: email,
+                phone: phone,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            editingStudentKey = null;
+        } else {
+            // Create new
+            const newStudentRef = studentsRef.push();
+            await newStudentRef.set({
+                name: name,
+                studentId: studentId,
+                email: email,
+                phone: phone,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+        
+        closeModal('addStudentModal');
+        document.getElementById('addStudentForm').reset();
+        loadStudents();
+        showNotification('Estudiante agregado exitosamente', 'success');
+    } catch (error) {
+        showNotification('Error al agregar estudiante: ' + error.message, 'error');
+    }
+}
+
+// Manejar agregar curso
+async function handleAddCourse(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('courseName').value;
+    const description = document.getElementById('courseDescription').value;
+    const schedule = document.getElementById('courseSchedule').value;
+    
+    try {
+        try {
+            await apiFetch('/api/courses', { method: 'POST', body: JSON.stringify({ name, description, schedule }) });
+        } catch (_) {
+            const newCourseRef = database.ref('teachers/' + currentUser.uid + '/courses').push();
+            await newCourseRef.set({
+                name: name,
+                description: description,
+                schedule: schedule,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+        
+        closeModal('addCourseModal');
+        document.getElementById('addCourseForm').reset();
+        loadCourses();
+        showNotification('Unidad didáctica creada exitosamente', 'success');
+    } catch (error) {
+        showNotification('Error al crear unidad didáctica: ' + error.message, 'error');
+    }
+}
+
+// Renderizar estudiantes
+function renderStudents() {
+    const container = document.getElementById('studentsGrid');
+    container.innerHTML = '';
+    
+    students.forEach(student => {
+        const studentCard = document.createElement('div');
+        studentCard.className = 'student-card';
+        studentCard.innerHTML = `
+            <div class="card-header">
+                <h3 class="card-title">${student.name}</h3>
+                <div class="card-actions">
+                    <button class="action-btn" onclick="editStudent('${student.id}')" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn" onclick="deleteStudent('${student.id}')" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="card-item">
+                    <i class="fas fa-id-card"></i>
+                    <span>ID: ${student.studentId}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-envelope"></i>
+                    <span>${student.email || 'No especificado'}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-phone"></i>
+                    <span>${student.phone || 'No especificado'}</span>
+                </div>
+            </div>
+        `;
+        container.appendChild(studentCard);
+    });
+}
+
+// Renderizar cursos
+function renderCourses() {
+    const container = document.getElementById('coursesGrid');
+    container.innerHTML = '';
+    
+    courses.forEach(course => {
+        const courseCard = document.createElement('div');
+        courseCard.className = 'course-card';
+        
+        // Determinar el ícono según el tipo de curso
+        let courseIcon = 'fas fa-book';
+        if (course.name.includes('Algoritmos')) courseIcon = 'fas fa-project-diagram';
+        else if (course.name.includes('Bases de Datos')) courseIcon = 'fas fa-database';
+        else if (course.name.includes('Desarrollo')) courseIcon = 'fas fa-code';
+        
+        courseCard.innerHTML = `
+            <div class="card-header">
+                <h3 class="card-title">${course.name}</h3>
+                <div class="card-actions">
+                    ${course.isDefault ? '<span class="default-badge">Predefinido</span>' : ''}
+                    <button class="action-btn" onclick="editCourse('${course.id}')" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    ${!course.isDefault ? `<button class="action-btn" onclick="deleteCourse('${course.id}')" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="card-item">
+                    <i class="${courseIcon}"></i>
+                    <span>${course.description || 'Sin descripción'}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-user"></i>
+                    <span>Instructor: ${course.instructor || 'No especificado'}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-clock"></i>
+                    <span>${course.schedule || 'Sin horario'}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>Aula: ${course.room || 'No especificada'}</span>
+                </div>
+                <div class="card-item">
+                    <i class="fas fa-users"></i>
+                    <span>Estudiantes inscritos: ${students.length}</span>
+                </div>
+            </div>
+        `;
+        container.appendChild(courseCard);
+    });
+}
+
+// Actualizar select de cursos
+function updateCourseSelect() {
+    const select = document.getElementById('courseSelect');
+    select.innerHTML = '<option value="">Seleccionar Unidad Didáctica</option>';
+    
+    courses.forEach(course => {
+        const option = document.createElement('option');
+        option.value = course.id;
+        option.textContent = course.name;
+        select.appendChild(option);
+    });
+}
+
+// Renderizar calendario de asistencia
+function renderAttendanceCalendar() {
+    const container = document.getElementById('attendanceCalendar');
+    const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const weekDays = ['D','L','M','M','J','V','S'];
+    let html = `<div class="calendar-header">
+        <h3>${currentYear}</h3>
+        <div class="calendar-nav">
+            <button onclick="changeYear(-1)"><i class=\"fas fa-chevron-left\"></i></button>
+            <button onclick="changeYear(1)"><i class=\"fas fa-chevron-right\"></i></button>
+        </div>
+    </div>`;
+    html += '<div class="year-grid">';
+    for (let m = 0; m < 12; m++) {
+        const firstDay = new Date(currentYear, m, 1);
+        const lastDay = new Date(currentYear, m + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = firstDay.getDay();
+        const mm = String(m + 1).padStart(2,'0');
+        // compute month stats from attendanceRecords if available (public view)
+        let presentCount = 0; let totalMarked = 0;
+        attendanceRecords.forEach(rec => {
+            const dateStr = rec.date || (rec.timestamp ? new Date(rec.timestamp).toISOString().split('T')[0] : null);
+            if (!dateStr) return;
+            if (dateStr.startsWith(`${currentYear}-${mm}-`)) {
+                totalMarked++;
+                if (rec.present || rec.status === 'present') presentCount++;
+            }
+        });
+        const monthPct = totalMarked > 0 ? Math.round((presentCount / totalMarked) * 100) : 0;
+        html += '<div class="mini-calendar">';
+        html += `<div class="mini-cal-header"><span>${monthNames[m]}</span><span class="mini-cal-stat">${monthPct}%</span></div>`;
+        html += '<div class="calendar-grid">';
+        weekDays.forEach(d => { html += `<div class="weekday">${d}</div>`; });
+        for (let i = 0; i < startingDay; i++) { html += '<div></div>'; }
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${currentYear}-${mm}-${String(day).padStart(2,'0')}`;
+            const rec = attendanceRecords.find(r => (r.date || (r.timestamp ? new Date(r.timestamp).toISOString().split('T')[0] : '')) === dateStr);
+            let dayClass = 'calendar-day';
+            if (rec) dayClass += (rec.present || rec.status === 'present') ? ' present' : ' absent';
+            html += `<div class="${dayClass}" title="${rec ? (rec.course || '') : ''}">${day}</div>`;
+        }
+        html += '</div></div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Obtener asistencia para una fecha específica
+function getAttendanceForDate(date) {
+    const dateStr = date.toISOString().split('T')[0];
+    return attendanceRecords.find(record => record.date === dateStr);
+}
+
+// Actualizar estadísticas
+function updateStats() {
+    document.getElementById('totalStudents').textContent = students.length;
+    document.getElementById('totalCourses').textContent = courses.length;
+    
+    // Calcular asistencia de hoy
+    const today = new Date().toISOString().split('T')[0];
+    const todayAttendance = attendanceRecords.find(record => record.date === today);
+    const todayPercentage = todayAttendance ? Math.round((todayAttendance.presentCount / students.length) * 100) : 0;
+    document.getElementById('todayAttendance').textContent = todayPercentage + '%';
+    
+    // Calcular promedio general
+    const totalRecords = attendanceRecords.length;
+    if (totalRecords > 0) {
+        const totalPresent = attendanceRecords.reduce((sum, record) => sum + record.presentCount, 0);
+        const totalPossible = totalRecords * students.length;
+        const avgPercentage = Math.round((totalPresent / totalPossible) * 100);
+        document.getElementById('avgAttendance').textContent = avgPercentage + '%';
+    } else {
+        document.getElementById('avgAttendance').textContent = '0%';
+    }
+}
+
+// Mostrar sección específica
+function showSection(sectionName) {
+    // Ocultar todas las secciones
+    document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Ocultar todos los elementos de navegación
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Mostrar la sección seleccionada
+    document.getElementById(sectionName + 'Section').classList.add('active');
+    
+    // Activar el elemento de navegación correspondiente
+    event.target.classList.add('active');
+    
+    // Actualizar título de la página
+    const titles = {
+        'overview': 'Resumen',
+        'students': 'Gestión de Alumnos',
+        'attendance': 'Control de Asistencia',
+        'courses': 'Unidades Didácticas',
+        'reports': 'Reportes y Estadísticas'
+    };
+    
+    document.getElementById('pageTitle').textContent = titles[sectionName];
+    document.getElementById('pageSubtitle').textContent = getSectionSubtitle(sectionName);
+}
+
+// Obtener subtítulo de la sección
+function getSectionSubtitle(sectionName) {
+    const subtitles = {
+        'overview': 'Bienvenido al panel de control',
+        'students': 'Administra la información de tus estudiantes',
+        'attendance': 'Registra y consulta la asistencia de tus alumnos',
+        'courses': 'Gestiona tus unidades didácticas',
+        'reports': 'Analiza el rendimiento y genera reportes'
+    };
+    return subtitles[sectionName];
+}
+
+// Mostrar/ocultar páginas
+function showLogin() {
+    hideAllPages();
+    document.getElementById('loginPage').classList.add('active');
+}
+
+function showRegister() {
+    hideAllPages();
+    document.getElementById('registerPage').classList.add('active');
+}
+
+function showDashboard() {
+    hideAllPages();
+    document.getElementById('dashboardPage').classList.add('active');
+}
+
+function hideAllPages() {
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+    });
+}
+
+// Mostrar modales
+function showAddStudentModal() {
+    document.getElementById('addStudentModal').classList.add('active');
+}
+
+function showAddCourseModal() {
+    document.getElementById('addCourseModal').classList.add('active');
+}
+
+function showAddModal() {
+    const currentSection = document.querySelector('.section.active');
+    if (currentSection.id === 'studentsSection') {
+        showAddStudentModal();
+    } else if (currentSection.id === 'coursesSection') {
+        showAddCourseModal();
+    }
+}
+
+// Cerrar modales
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+    // If closing student modal, reset edit state and UI
+    if (modalId === 'addStudentModal') {
+        editingStudentKey = null;
+        const header = document.querySelector('#addStudentModal .modal-header h3');
+        if (header) header.textContent = 'Agregar Alumno';
+        const submitBtn = document.querySelector('#addStudentForm button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = 'Agregar';
+        // reset form fields
+        const form = document.getElementById('addStudentForm');
+        if (form) form.reset();
+    }
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.classList.remove('active');
+    });
+}
+
+// Funciones de utilidad
+function togglePassword() {
+    const passwordInput = document.getElementById('password');
+    const toggleBtn = document.querySelector('.toggle-password i');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleBtn.classList.remove('fa-eye');
+        toggleBtn.classList.add('fa-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        toggleBtn.classList.remove('fa-eye-slash');
+        toggleBtn.classList.add('fa-eye');
+    }
+}
+
+function toggleRegPassword() {
+    const passwordInput = document.getElementById('regPassword');
+    const toggleBtn = document.querySelector('#registerPage .toggle-password i');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleBtn.classList.remove('fa-eye');
+        toggleBtn.classList.add('fa-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        toggleBtn.classList.remove('fa-eye-slash');
+        toggleBtn.classList.add('fa-eye');
+    }
+}
+
+function updateDateTime() {
+    const now = new Date();
+    const options = { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    };
+    const dt = document.getElementById('dateTime');
+    if (dt) dt.textContent = now.toLocaleDateString('es-ES', options);
+}
+
+function getMonthName(month) {
+    const months = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return months[month];
+}
+
+// Funciones de gestión de estudiantes
+function editStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return showNotification('Estudiante no encontrado', 'error');
+
+    // Set edit mode
+    editingStudentKey = studentId;
+    // Fill form
+    document.getElementById('studentName').value = student.name || '';
+    document.getElementById('studentId').value = student.studentId || '';
+    document.getElementById('studentEmail').value = student.email || '';
+    document.getElementById('studentPhone').value = student.phone || '';
+
+    // Update modal title and submit button text if present
+    const header = document.querySelector('#addStudentModal .modal-header h3');
+    if (header) header.textContent = 'Editar Alumno';
+    const submitBtn = document.querySelector('#addStudentForm button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = 'Guardar cambios';
+
+    showAddStudentModal();
+}
+
+async function deleteStudent(studentId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este estudiante?')) {
+        try {
+            // Prefer deleting directly from Firebase Realtime Database (real data)
+            const studentsRef = database.ref('teachers/' + currentUser.uid + '/students');
+
+            // Try direct removal by key (this works when `studentId` argument is the Firebase push key)
+            try {
+                await studentsRef.child(studentId).remove();
+            } catch (e) {
+                console.warn('Direct key removal failed, will try lookup by studentId field', e);
+            }
+
+            // Also attempt to remove any record whose `studentId` field matches the student's studentId value
+            const localStudent = students.find(s => s.id === studentId || s.studentId === studentId);
+            if (localStudent && localStudent.studentId) {
+                const snap = await studentsRef.orderByChild('studentId').equalTo(localStudent.studentId).once('value');
+                if (snap.exists()) {
+                    const val = snap.val();
+                    for (const key in val) {
+                        await studentsRef.child(key).remove();
+                    }
+                }
+            }
+            loadStudents();
+            showNotification('Estudiante eliminado exitosamente', 'success');
+        } catch (error) {
+            showNotification('Error al eliminar estudiante: ' + error.message, 'error');
+        }
+    }
+}
+
+// Funciones de gestión de cursos
+function editCourse(courseId) {
+    const course = courses.find(c => c.id === courseId);
+    if (course) {
+        // Implementar edición de curso
+        showNotification('Función de edición en desarrollo', 'info');
+    }
+}
+
+async function deleteCourse(courseId) {
+    if (confirm('¿Estás seguro de que quieres eliminar esta unidad didáctica?')) {
+        try {
+            // Delete from Firebase first (real data source)
+            const coursesRef = database.ref('teachers/' + currentUser.uid + '/courses');
+            try {
+                await coursesRef.child(courseId).remove();
+            } catch (e) {
+                console.warn('Direct course key removal failed, will try lookup by course id field', e);
+            }
+
+            const localCourse = courses.find(c => c.id === courseId || c.courseId === courseId);
+            if (localCourse && localCourse.courseId) {
+                const snap = await coursesRef.orderByChild('courseId').equalTo(localCourse.courseId).once('value');
+                if (snap.exists()) {
+                    const val = snap.val();
+                    for (const key in val) {
+                        await coursesRef.child(key).remove();
+                    }
+                }
+            }
+
+            loadCourses();
+            showNotification('Unidad didáctica eliminada exitosamente', 'success');
+        } catch (error) {
+            showNotification('Error al eliminar unidad didáctica: ' + error.message, 'error');
+        }
+    }
+}
+
+// Funciones de asistencia
+function markAttendance() {
+    const courseId = document.getElementById('courseSelect').value;
+    if (!courseId) {
+        showNotification('Por favor selecciona una unidad didáctica', 'warning');
+        return;
+    }
+    
+    // Implementar marcado de asistencia
+    showNotification('Función de marcado de asistencia en desarrollo', 'info');
+}
+
+// Abrir la cámara y preparar escaneo QR
+function openCameraForAttendance() {
+    const overlay = document.getElementById('cameraOverlay');
+    overlay.style.display = 'block';
+
+    // Si ya está activo, no reabrir
+    if (cameraStream) return;
+
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Pedir permiso y abrir la cámara trasera si es posible
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        .then(stream => {
+            cameraStream = stream;
+            video.srcObject = stream;
+            video.play();
+
+            qrScannerEnabled = true;
+
+            scanInterval = setInterval(() => {
+                if (!qrScannerEnabled) return;
+                if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                try {
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    // Usamos jsQR (asegúrate de incluir la librería en index.html)
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code) {
+                        handleScannedPayload(code.data);
+                    }
+                } catch (err) {
+                    console.error('Error leyendo imagen:', err);
+                }
+            }, 500);
+        })
+        .catch(err => {
+            console.error('No se pudo acceder a la cámara:', err);
+            showNotification('No se pudo acceder a la cámara: ' + err.message, 'error');
+        });
+}
+
+function stopCamera() {
+    qrScannerEnabled = false;
+    if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+    }
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+    const overlay = document.getElementById('cameraOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+// Manejar payload escaneado
+async function handleScannedPayload(payload) {
+    // Evitar procesar múltiples veces el mismo código
+    if (!qrScannerEnabled) return;
+    qrScannerEnabled = false; // bloquear temporalmente
+
+    document.getElementById('scanResult').textContent = 'Código detectado: ' + payload;
+
+    // Intentar parsear JSON
+    let data = null;
+    try { data = JSON.parse(payload); } catch (e) { data = null; }
+
+    if (data && data.type === 'student' && data.dni) {
+        // If the QR was created by a teacher it may include teacherId and courseId
+        const payloadCourseId = data.courseId || null;
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        // Prefer teacherId from payload, otherwise use currently logged-in teacher, otherwise 'public'
+        const teacherId = data.teacherId || (currentUser ? currentUser.uid : 'public');
+
+        // Ensure the student exists under the teacher's students node and enroll in course if provided
+        try {
+            const studentsRef = database.ref('teachers/' + teacherId + '/students');
+            let studentKey = null;
+            // try to find by studentId (dni)
+            const snap = await studentsRef.orderByChild('studentId').equalTo(data.dni).once('value');
+            if (snap.exists()) {
+                const val = snap.val();
+                studentKey = Object.keys(val)[0];
+                await studentsRef.child(studentKey).update({ name: data.name, studentId: data.dni, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+            } else {
+                const newRef = studentsRef.push();
+                await newRef.set({ name: data.name, studentId: data.dni, createdAt: firebase.database.ServerValue.TIMESTAMP });
+                studentKey = newRef.key;
+            }
+
+            // If payload includes a courseId, enroll the student in that course under the teacher
+            if (payloadCourseId) {
+                const courseStudentsRef = database.ref('teachers/' + teacherId + '/courses/' + payloadCourseId + '/students');
+                await courseStudentsRef.child(studentKey).set({ studentId: data.dni, name: data.name });
+            }
+        } catch (ensErr) {
+            console.warn('Error ensuring student/enrollment in teacher node:', ensErr);
+        }
+
+        try {
+            // register attendance
+            const courseId = payloadCourseId || document.getElementById('courseSelect').value || 'general';
+            try {
+                await apiFetch('/api/attendance', { method: 'POST', body: JSON.stringify({ courseId, studentDni: data.dni, studentName: data.name, timestamp: Date.now(), date: dateStr }) });
+            } catch (_) {
+                const attendanceRef = database.ref('teachers/' + teacherId + '/attendance').push();
+                await attendanceRef.set({
+                    studentName: data.name,
+                    studentDni: data.dni,
+                    courseId: courseId,
+                    date: dateStr,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+
+            showNotification('Asistencia registrada para ' + data.name, 'success');
+            document.getElementById('scanResult').textContent = 'Asistencia registrada para ' + data.name;
+        } catch (attErr) {
+            showNotification('Error registrando asistencia: ' + (attErr.message || attErr), 'error');
+        }
+    } else {
+        showNotification('QR no reconocido', 'warning');
+        document.getElementById('scanResult').textContent = 'QR no reconocido: ' + payload;
+    }
+
+    // Después de 2 segundos, permitir nuevos escaneos
+    setTimeout(() => { qrScannerEnabled = true; }, 2000);
+}
+
+function showAttendanceDetails(date) {
+    // Implementar detalles de asistencia
+    showNotification('Función de detalles de asistencia en desarrollo', 'info');
+}
+
+function changeYear(direction) { currentYear += direction; renderAttendanceCalendar(); }
+
+// Funciones de reportes
+function generateReport() {
+    // Implementar generación de reportes
+    showNotification('Función de generación de reportes en desarrollo', 'info');
+}
+
+// Cerrar sesión
+function logout() {
+    auth.signOut().then(() => {
+        currentUser = null;
+        students = [];
+        courses = [];
+        attendanceRecords = [];
+        showLogin();
+        showNotification('Sesión cerrada exitosamente', 'success');
+    }).catch((error) => {
+        showNotification('Error al cerrar sesión: ' + error.message, 'error');
+    });
+}
+
+// Mostrar notificaciones
+function showNotification(message, type = 'info') {
+    // Crear elemento de notificación
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        animation: slideInRight 0.3s ease-out;
+        max-width: 400px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    `;
+    
+    // Configurar colores según el tipo
+    const colors = {
+        success: '#10b981',
+        error: '#ef4444',
+        warning: '#f59e0b',
+        info: '#3b82f6'
+    };
+    
+    notification.style.backgroundColor = colors[type] || colors.info;
+    notification.textContent = message;
+    
+    // Agregar al DOM
+    document.body.appendChild(notification);
+    
+    // Remover después de 5 segundos
+    setTimeout(() => {
+        notification.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Agregar estilos para notificaciones
+const notificationStyles = document.createElement('style');
+notificationStyles.textContent = `
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(notificationStyles);

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+</head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel Estudiante</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>Formulario de Estudiante</h1>
+  <form id="studentForm" action="/api/students" method="POST" style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:var(--border-radius-lg);box-shadow:var(--shadow-sm);padding:2rem;max-width:400px;margin:auto;margin-bottom:2rem;">
+    <label for="name" style="color:var(--text-primary);font-weight:500;">Nombre:</label><br>
+    <input type="text" id="name" name="name" required style="width:100%;padding:0.75rem 1rem;margin-bottom:1rem;border:1px solid var(--border-color);border-radius:var(--border-radius);background:var(--gray-100);color:var(--text-primary);">
+
+    <label for="lastname" style="color:var(--text-primary);font-weight:500;">Apellido:</label><br>
+    <input type="text" id="lastname" name="lastname" required style="width:100%;padding:0.75rem 1rem;margin-bottom:1rem;border:1px solid var(--border-color);border-radius:var(--border-radius);background:var(--gray-100);color:var(--text-primary);">
+
+    <label for="email" style="color:var(--text-primary);font-weight:500;">Correo electrónico:</label><br>
+    <input type="email" id="email" name="email" required style="width:100%;padding:0.75rem 1rem;margin-bottom:1rem;border:1px solid var(--border-color);border-radius:var(--border-radius);background:var(--gray-100);color:var(--text-primary);">
+
+    <label for="course" style="color:var(--text-primary);font-weight:500;">Curso:</label><br>
+    <input type="text" id="course" name="course" required style="width:100%;padding:0.75rem 1rem;margin-bottom:1rem;border:1px solid var(--border-color);border-radius:var(--border-radius);background:var(--gray-100);color:var(--text-primary);">
+
+    <button type="submit" style="background:linear-gradient(135deg,var(--primary-color),var(--primary-dark));color:var(--text-primary);border:none;padding:1rem 2rem;border-radius:var(--border-radius);font-size:1rem;font-weight:600;cursor:pointer;transition:var(--transition);display:block;width:100%;margin-top:1rem;">Registrar Estudiante</button>
+  </form>
+
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:var(--border-radius-lg);box-shadow:var(--shadow-sm);padding:2rem;max-width:400px;margin:auto;">
+    <h2 style="color:var(--text-primary);font-weight:600;text-align:center;margin-bottom:1rem;">Escanear código del docente</h2>
+    <button id="scanTeacherBtn" type="button" style="background:linear-gradient(135deg,var(--primary-color),var(--primary-dark));color:var(--text-primary);border:none;padding:1rem 2rem;border-radius:var(--border-radius);font-size:1rem;font-weight:600;cursor:pointer;transition:var(--transition);display:block;width:100%;margin-bottom:1rem;">Escanear Código QR</button>
+    <div id="qr-reader" style="width:100%;min-height:300px;margin-top:20px;"></div>
+    <div id="qr-result" style="color:var(--success-color);font-weight:600;text-align:center;margin-top:1rem;"></div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script>
+    document.getElementById('scanTeacherBtn').addEventListener('click', function() {
+      const qrReader = document.getElementById('qr-reader');
+      """removed"""
+              function(errorMessage) {
+                // Opcional: mostrar errores
+              }
+            ).catch(function(err) {
+              document.getElementById('qr-result').innerText = `Error: ${err}`;
+            });
+          });
+        </script>
