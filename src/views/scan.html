@@ -505,10 +505,6 @@
             initializeCamera();
         }
 
-            // Iniciar cámara
-            initializeCamera();
-        }
-
         // Inicializar cámara
         function initializeCamera() {
             const statusDiv = document.getElementById("status");
@@ -618,7 +614,7 @@
                 
                 console.log("🔍 Intentando extraer sessionId...");
                 
-                // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
+                // Si es una URL completa (https://poryectojiji.onrender.com/scan?sessionId=xxx o http://localhost:5000/scan?sessionId=xxx)
                 if (qrData.includes('http://') || qrData.includes('https://')) {
                     console.log("🌐 Detectado como URL absoluta");
                     try {
