@@ -280,13 +280,27 @@
                         <div class="section-header">
                             <h2>Control de Asistencia</h2>
                             <div class="attendance-controls">
+                                <input type="date" id="attendanceDateFilter" class="select-input" onchange="filterAttendanceByDate()">
                                 <select id="courseSelect" class="select-input">
                                     <option value="">Seleccionar Unidad Didáctica</option>
                                 </select>
-                                <button class="btn-primary" onclick="openCameraForAttendance()">
+                                <!-- <button class="btn-primary" onclick="openCameraForAttendance()">
                                     <i class="fas fa-camera"></i>
                                     Abrir Cámara (QR)
-                                </button>
+                                </button> -->
+                            </div>
+                        </div>
+
+                        <!-- Lista de asistencia del día -->
+                        <div style="margin-bottom: 2rem;">
+                            <h3 style="color: var(--primary-color); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-list-check"></i>
+                                Asistencia de hoy
+                            </h3>
+                            <div id="todayAttendanceList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                                <div style="padding: 2rem; text-align: center; color: var(--text-secondary); grid-column: 1/-1;">
+                                    Cargando asistencia del día...
+                                </div>
                             </div>
                         </div>
                         
