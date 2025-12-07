@@ -604,6 +604,13 @@
 
             const statusEl = document.getElementById("createStatus");
             setStatus(statusEl, "Creando sesión...", "loading");
+            
+            console.log('📤 Enviando request a /api/sessions con datos:', {
+                courseId,
+                courseName,
+                teacherId,
+                teacherName,
+            });
 
             try {
                 const response = await fetch("/api/sessions", {
@@ -617,7 +624,11 @@
                     }),
                 });
 
+                console.log('📥 Respuesta recibida del servidor:', response.status, response.statusText);
+
                 const data = await response.json();
+                
+                console.log('✅ Datos de sesión recibidos:', data);
 
                 if (!response.ok) {
                     throw new Error(data.message || "Error al crear sesión");
