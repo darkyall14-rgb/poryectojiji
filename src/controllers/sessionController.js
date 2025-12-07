@@ -12,13 +12,16 @@ const SESSIONS_PATH = "sessions";
 exports.createSession = async (req, res) => {
   const { courseId, courseName, teacherId, teacherName } = req.body;
 
+  console.log('📝 [createSession] Recibida solicitud:', { courseId, courseName, teacherId, teacherName });
+
   if (!courseId || !teacherId) {
+    console.log('❌ [createSession] Validación fallida: courseId o teacherId faltante');
     return res.status(400).json({
       message: "courseId and teacherId are required",
     });
   }
 
-  const sessionId = uuidv4();
+  const sessionId = require('uuid').v4();
   const qrUrl = `${req.protocol}://${req.get('host')}/scan?sessionId=${sessionId}`;
 
   const session = {
@@ -34,20 +37,23 @@ exports.createSession = async (req, res) => {
   };
 
   try {
+    console.log('💾 [createSession] Guardando sesión en Firebase:', sessionId);
     // Guardar en Firebase
     await firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}`, session);
-    console.log(`✓ Session created: ${sessionId} for course ${courseId}`);
+    console.log(`✅ [createSession] Session creada exitosamente: ${sessionId}`);
+    
+    res.status(201).json({
+      sessionId,
+      qrUrl,
+      message: "Session created successfully. Share this QR code with students.",
+    });
   } catch (error) {
-    console.error("Error saving session to Firebase:", error);
+    console.error("❌ [createSession] Error saving session to Firebase:", error.message);
     return res.status(500).json({
-      message: "Error creating session",
+      message: "Error creating session: " + error.message,
     });
   }
-
-  res.status(201).json({
-    sessionId,
-    qrUrl,
-    message: "Session created successfully. Share this QR code with students.",
+};
   });
 };
 

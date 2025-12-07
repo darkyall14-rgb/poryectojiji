@@ -613,6 +613,10 @@
             });
 
             try {
+                // Crear AbortController para timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos de timeout
+                
                 const response = await fetch("/api/sessions", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -622,8 +626,11 @@
                         teacherId,
                         teacherName,
                     }),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
+                
                 console.log('📥 Respuesta recibida del servidor:', response.status, response.statusText);
 
                 const data = await response.json();
@@ -651,7 +658,15 @@
 
             } catch (error) {
                 console.error("Error:", error);
-                setStatus(statusEl, `❌ ${error.message}`, "error");
+                
+                let errorMessage = error.message;
+                if (error.name === 'AbortError') {
+                    errorMessage = 'La solicitud tardó demasiado tiempo. Verifica tu conexión e intenta de nuevo.';
+                } else if (error instanceof TypeError) {
+                    errorMessage = 'Error de conexión. Verifica que el servidor esté ejecutándose.';
+                }
+                
+                setStatus(statusEl, `❌ ${errorMessage}`, "error");
             } finally {
                 // Re-enable button
                 generateBtn.disabled = false;
