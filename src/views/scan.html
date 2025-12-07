@@ -6,7 +6,7 @@
     <title>Escanear Asistencia - QR</title>
     <link rel="stylesheet" href="/styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.2.4/html5-qrcode.min.js"></script>
     <style>
         .scan-container {
             min-height: 100vh;
@@ -512,14 +512,29 @@
             console.log("Inicializando cámara con html5-qrcode...");
             console.log("Html5Qrcode disponible:", typeof Html5Qrcode);
             
-            // Verificar que html5-qrcode está cargado
-            if (typeof Html5Qrcode === 'undefined') {
-                console.error("ERROR: Html5Qrcode no está cargado");
-                setStatus(statusDiv, "Error: librería QR no cargada. Recarga la página.", "error");
-                document.getElementById("retryBtn").style.display = "block";
-                return;
+            // Función para esperar a que html5-qrcode esté disponible
+            function waitForHtml5Qrcode(callback, attempts = 0) {
+                if (typeof Html5Qrcode !== 'undefined') {
+                    console.log("Html5Qrcode cargado exitosamente");
+                    callback();
+                } else if (attempts < 20) {
+                    console.log("Esperando html5-qrcode...", attempts);
+                    setTimeout(() => waitForHtml5Qrcode(callback, attempts + 1), 500);
+                } else {
+                    console.error("ERROR: Html5Qrcode no se cargó después de 10 segundos");
+                    setStatus(statusDiv, "Error: librería QR no cargada. Recarga la página.", "error");
+                    document.getElementById("retryBtn").style.display = "block";
+                }
             }
+            
+            waitForHtml5Qrcode(() => {
+                startQrScanning(statusDiv);
+            });
+        }
 
+        function startQrScanning(statusDiv) {
+            console.log("Iniciando escaneo QR...");
+            
             const html5QrCode = new Html5Qrcode("video");
             
             console.log("Instancia de Html5Qrcode creada, iniciando escaneo...");
