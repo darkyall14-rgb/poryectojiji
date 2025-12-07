@@ -112,6 +112,26 @@ async function listSessions(req, res) {
   }
 }
 
+// Function to close a session
+async function closeSession(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const sessionData = await firebaseUtils.readOnce(`sessions/${sessionId}`);
+
+    if (!sessionData) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    sessionData.closedAt = new Date().toISOString();
+    await firebaseUtils.write(`sessions/${sessionId}`, sessionData);
+
+    res.status(200).json({ message: "Session closed successfully", session: sessionData });
+  } catch (error) {
+    console.error("Error closing session:", error);
+    res.status(500).json({ message: "Error closing session" });
+  }
+}
+
 module.exports = {
   createStudent,
   getStudentByStudentId,
@@ -124,4 +144,5 @@ module.exports = {
   createSession,
   getSession,
   listSessions,
+  closeSession,
 };
