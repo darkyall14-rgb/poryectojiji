@@ -411,10 +411,11 @@
                 const user = firebase.auth().currentUser;
                 
                 if (!user) {
-                    console.log("No hay usuario autenticado, esperando datos del formulario");
+                    console.log("No hay usuario autenticado, mostrando formulario vacío");
                     return false;
                 }
 
+                console.log("Usuario autenticado encontrado:", user.uid);
                 console.log("Cargando datos de Firebase para usuario:", user.uid);
                 
                 // Obtener datos del estudiante desde /students/{studentId}
@@ -428,7 +429,7 @@
                     studentEmail = studentData.email || user.email;
                     studentPhone = studentData.phone;
 
-                    console.log("Datos cargados de Firebase:", {
+                    console.log("Datos cargados de Firebase correctamente:", {
                         studentId,
                         studentName,
                         studentEmail,
@@ -444,7 +445,7 @@
                     return true;
                 }
                 
-                console.log("No se encontraron datos del estudiante en Firebase");
+                console.log("No se encontraron datos del estudiante en Firebase para este usuario");
                 return false;
             } catch (error) {
                 console.error("Error cargando datos de Firebase:", error);
@@ -459,6 +460,8 @@
             const email = document.getElementById("studentEmail").value.trim();
             const phone = document.getElementById("studentPhone").value.trim();
 
+            console.log("Datos del formulario:", { name, id, email, phone });
+
             if (!name || !id || !email || !phone) {
                 setStatus(document.getElementById("dataStatus"), "Por favor completa todos los campos requeridos", "error");
                 return;
@@ -470,17 +473,25 @@
             studentEmail = email;
             studentPhone = phone;
 
+            console.log("Variables globales establecidas:", {
+                studentId,
+                studentName,
+                studentEmail,
+                studentPhone
+            });
+
             try {
                 // Si hay usuario autenticado, guardar en Firebase
                 const user = firebase.auth().currentUser;
                 if (user) {
+                    console.log("Guardando datos en Firebase para usuario:", user.uid);
                     await db.ref(`students/${user.uid}`).update({
                         id: id,
                         name: name,
                         email: email,
                         phone: phone
                     });
-                    console.log("Datos guardados en Firebase");
+                    console.log("Datos guardados en Firebase correctamente");
                 }
             } catch (error) {
                 console.error("Error guardando datos en Firebase:", error);
@@ -602,16 +613,36 @@
 
             setStatus(statusDiv, "Registrando asistencia...", "loading");
             console.log("Registrando asistencia para sesion:", sessionId);
+            console.log("Datos del estudiante en variables globales:", {
+                studentId,
+                studentName,
+                studentEmail,
+                studentPhone
+            });
+
+            // Validar que todos los datos estén presentes
+            if (!studentId || !studentName) {
+                const errorMsg = "Error: Datos del estudiante incompletos. Por favor vuelve al formulario.";
+                console.error(errorMsg);
+                setStatus(statusDiv, errorMsg, "error");
+                hasScanned = false;
+                scanning = true;
+                document.getElementById("retryBtn").textContent = "Intentar de Nuevo";
+                document.getElementById("retryBtn").onclick = () => location.reload();
+                document.getElementById("retryBtn").style.display = "block";
+                return;
+            }
 
             try {
                 const attendanceData = {
                     studentId: studentId,
                     studentName: studentName,
-                    studentEmail: studentEmail,
-                    studentPhone: studentPhone,
+                    studentEmail: studentEmail || null,
+                    studentPhone: studentPhone || null,
                 };
                 
-                console.log("Datos a enviar:", attendanceData);
+                console.log("Datos a enviar al servidor:", attendanceData);
+                console.log("URL de endpoint:", `/api/sessions/${sessionId}/attendance`);
                 
                 const response = await fetch(`/api/sessions/${sessionId}/attendance`, {
                     method: "POST",
@@ -634,11 +665,13 @@
                 document.getElementById("sessionInfo").textContent = `Sesion: ${sessionId}`;
                 studentInfoDiv.classList.add("show");
 
+                console.log("Asistencia guardada correctamente en Firebase");
+
                 document.getElementById("retryBtn").textContent = "Volver";
                 document.getElementById("retryBtn").onclick = () => (window.location.href = "/");
                 document.getElementById("retryBtn").style.display = "block";
             } catch (error) {
-                console.error("Error:", error);
+                console.error("Error registrando asistencia:", error);
                 setStatus(statusDiv, error.message, "error");
                 hasScanned = false;
                 scanning = true;
