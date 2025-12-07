@@ -1406,3 +1406,9 @@ notificationStyles.textContent = `
     }
 `;
 document.head.appendChild(notificationStyles);
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Asegurarse de que el DOM esté completamente cargado antes de ejecutar el script
+    loadUserData();
+    loadCourses();
+});
