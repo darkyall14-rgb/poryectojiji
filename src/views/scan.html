@@ -271,9 +271,7 @@
                 </h1>
                 <p class="scan-subtitle">Escanea el código QR del docente</p>
 
-                <div class="video-container">
-                    <video id="video" autoplay playsinline></video>
-                    <canvas id="canvas"></canvas>
+                <div class="video-container" id="qr-reader">
                 </div>
 
                 <div class="status-box loading" id="status">
@@ -532,97 +530,129 @@
             });
         }
 
+        // Variable global para almacenar la instancia de html5QrCode
+        let html5QrCodeInstance = null;
+
         function startQrScanning(statusDiv) {
             console.log("Iniciando escaneo QR...");
             
-            const html5QrCode = new Html5Qrcode("video");
-            
-            console.log("Instancia de Html5Qrcode creada, iniciando escaneo...");
-            
-            html5QrCode.start(
-                { facingMode: "environment" },
-                {
+            try {
+                // Crear instancia con el ID del div contenedor
+                html5QrCodeInstance = new Html5Qrcode("qr-reader");
+                
+                console.log("Instancia de Html5Qrcode creada, iniciando escaneo...");
+                
+                // Configuración de la cámara
+                const config = {
                     fps: 10,
-                    qrbox: { width: 250, height: 250 }
-                },
-                (decodedText, decodedResult) => {
-                    // QR detectado
-                    if (!hasScanned) {
-                        console.log("QR DETECTADO:", decodedText);
-                        hasScanned = true;
-                        scanning = false;
-                        html5QrCode.stop().catch(err => console.log("Error deteniendo scanner:", err));
-                        
-                        // El decodedText ya es el string del QR
-                        const qrData = decodedText;
-                        console.log("Datos del QR:", qrData);
-                        
-                        try {
-                            let extractedSessionId = null;
-                            
-                            console.log("Intentando extraer sessionId...");
-                            
-                            // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
-                            if (qrData.includes('http://') || qrData.includes('https://')) {
-                                console.log("Detectado como URL absoluta");
-                                try {
-                                    const url = new URL(qrData);
-                                    extractedSessionId = url.searchParams.get("sessionId");
-                                    console.log("SessionId de URL absoluta:", extractedSessionId);
-                                } catch (urlError) {
-                                    console.log("Error parseando URL:", urlError);
-                                }
-                            } 
-                            // Si contiene sessionId directamente
-                            if (!extractedSessionId && qrData.includes('sessionId=')) {
-                                console.log("Detectado como URL relativa o parámetro");
-                                const parts = qrData.split('?');
-                                if (parts.length > 1) {
-                                    const urlParams = new URLSearchParams(parts[1]);
-                                    extractedSessionId = urlParams.get("sessionId");
-                                    console.log("SessionId de parámetros:", extractedSessionId);
-                                }
-                            }
-                            // Intenta extraer UUID directamente (si el QR solo contiene el UUID)
-                            if (!extractedSessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrData)) {
-                                console.log("Detectado como UUID puro");
-                                extractedSessionId = qrData;
-                            }
-                            
-                            sessionId = extractedSessionId;
-                            console.log("Session ID final extraido:", sessionId);
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    disableFlip: false
+                };
 
-                            if (sessionId) {
-                                console.log("SessionId válido, registrando asistencia...");
-                                registerAttendance();
-                            } else {
-                                console.log("SessionId no encontrado, mostrando error");
-                                setStatus(statusDiv, "QR no valido - sessionId no encontrado", "error");
-                                hasScanned = false;
-                                scanning = true;
-                                html5QrCode.resume();
-                            }
-                        } catch (error) {
-                            console.error("Error parsing QR data:", error);
-                            setStatus(statusDiv, "Error al procesar QR: " + error.message, "error");
-                            hasScanned = false;
-                            scanning = true;
-                            html5QrCode.resume();
+                // Iniciar el escaneo
+                html5QrCodeInstance.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        // QR detectado
+                        if (!hasScanned) {
+                            console.log("✅ QR DETECTADO:", decodedText);
+                            hasScanned = true;
+                            scanning = false;
+                            
+                            // Pausar el escaneo
+                            html5QrCodeInstance.pause(true);
+                            
+                            // El decodedText ya es el string del QR
+                            const qrData = decodedText;
+                            console.log("Datos del QR:", qrData);
+                            
+                            processQRData(qrData, statusDiv);
                         }
+                    },
+                    (errorMessage) => {
+                        // Error al escanear - silenciosamente (se repite en cada frame)
                     }
-                },
-                (errorMessage) => {
-                    // Error al escanear - silenciosamente (se repite en cada frame)
-                    // No mostrar spam de logs
-                }
-            ).catch(err => {
-                console.error("Error iniciando cámara:", err);
-                setStatus(statusDiv, "Error al acceder a la cámara: " + err.message, "error");
-                document.getElementById("retryBtn").style.display = "block";
-            });
+                ).catch(err => {
+                    console.error("❌ Error iniciando cámara:", err);
+                    setStatus(statusDiv, "Error al acceder a la cámara: " + err.message, "error");
+                    document.getElementById("retryBtn").style.display = "block";
+                });
 
-            setStatus(statusDiv, "Buscando codigo QR...", "loading");
-            scanning = true;
+                setStatus(statusDiv, "Buscando codigo QR...", "loading");
+                scanning = true;
+
+            } catch (error) {
+                console.error("❌ Error en startQrScanning:", error);
+                setStatus(statusDiv, "Error al inicializar escaneo: " + error.message, "error");
+                document.getElementById("retryBtn").style.display = "block";
+            }
+        }
+
+        function processQRData(qrData, statusDiv) {
+            try {
+                let extractedSessionId = null;
+                
+                console.log("Intentando extraer sessionId...");
+                
+                // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
+                if (qrData.includes('http://') || qrData.includes('https://')) {
+                    console.log("Detectado como URL absoluta");
+                    try {
+                        const url = new URL(qrData);
+                        extractedSessionId = url.searchParams.get("sessionId");
+                        console.log("SessionId de URL absoluta:", extractedSessionId);
+                    } catch (urlError) {
+                        console.log("Error parseando URL:", urlError);
+                    }
+                } 
+                // Si contiene sessionId directamente
+                if (!extractedSessionId && qrData.includes('sessionId=')) {
+                    console.log("Detectado como URL relativa o parámetro");
+                    const parts = qrData.split('?');
+                    if (parts.length > 1) {
+                        const urlParams = new URLSearchParams(parts[1]);
+                        extractedSessionId = urlParams.get("sessionId");
+                        console.log("SessionId de parámetros:", extractedSessionId);
+                    }
+                }
+                // Intenta extraer UUID directamente (si el QR solo contiene el UUID)
+                if (!extractedSessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrData)) {
+                    console.log("Detectado como UUID puro");
+                    extractedSessionId = qrData;
+                }
+                
+                sessionId = extractedSessionId;
+                console.log("Session ID final extraido:", sessionId);
+
+                if (sessionId) {
+                    console.log("✅ SessionId válido, registrando asistencia...");
+                    registerAttendance();
+                } else {
+                    console.log("❌ SessionId no encontrado");
+                    setStatus(statusDiv, "QR no válido - sessionId no encontrado", "error");
+                    hasScanned = false;
+                    scanning = true;
+                    // Reanudar escaneo después de 2 segundos
+                    setTimeout(() => {
+                        if (html5QrCodeInstance && !hasScanned) {
+                            html5QrCodeInstance.resume();
+                        }
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error("❌ Error processing QR data:", error);
+                setStatus(statusDiv, "Error al procesar QR: " + error.message, "error");
+                hasScanned = false;
+                scanning = true;
+                // Reanudar escaneo después de 2 segundos
+                setTimeout(() => {
+                    if (html5QrCodeInstance && !hasScanned) {
+                        html5QrCodeInstance.resume();
+                    }
+                }, 2000);
+            }
         }
 
         // Registrar asistencia
