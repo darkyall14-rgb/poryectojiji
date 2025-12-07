@@ -153,27 +153,42 @@ exports.markAttendance = async (req, res) => {
   const { sessionId } = req.params;
   const { studentId, studentName, studentEmail, studentPhone } = req.body;
 
+  console.log('[markAttendance] Solicitud recibida:', {
+    sessionId,
+    studentId,
+    studentName,
+    studentEmail,
+    studentPhone,
+  });
+
   if (!sessionId) {
+    console.log('[markAttendance] Error: sessionId no proporcionado');
     return res.status(400).json({
       message: "sessionId is required",
     });
   }
 
   if (!studentId && !studentName) {
+    console.log('[markAttendance] Error: studentId o studentName no proporcionados');
     return res.status(400).json({
       message: "studentId or studentName is required",
     });
   }
 
   try {
+    console.log('[markAttendance] Buscando sesión en Firebase:', sessionId);
     const session = await firebaseUtils.readOnce(`${SESSIONS_PATH}/${sessionId}`);
     if (!session) {
+      console.log('[markAttendance] Error: Sesión no encontrada:', sessionId);
       return res.status(404).json({
         message: "Session not found",
       });
     }
 
+    console.log('[markAttendance] Sesión encontrada:', session.courseName);
+
     if (session.status !== 'active') {
+      console.log('[markAttendance] Error: Sesión no está activa');
       return res.status(400).json({
         message: "This session is no longer active",
       });
@@ -186,6 +201,7 @@ exports.markAttendance = async (req, res) => {
     );
 
     if (exists) {
+      console.log('[markAttendance] Error: Estudiante ya marcado en esta sesión');
       return res.status(400).json({
         message: "Student already marked as present in this session",
       });
@@ -202,6 +218,8 @@ exports.markAttendance = async (req, res) => {
     // Agregar a la lista de asistentes (usar la variable local)
     const updatedAttendees = [...attendees, attendance];
 
+    console.log('[markAttendance] Preparado para guardar asistencia');
+    
     // Responder inmediatamente al cliente
     res.status(201).json({
       message: "Attendance marked successfully",
@@ -211,12 +229,19 @@ exports.markAttendance = async (req, res) => {
     // Guardar en Firebase de forma asincrónica (sin bloquear la respuesta)
     (async () => {
       try {
+        console.log('[markAttendance] Iniciando guardado asincrónico en Firebase');
+        
         // Actualizar la sesión en Firebase con el nuevo asistente
+        console.log('[markAttendance] Guardando asistente en:', `${SESSIONS_PATH}/${sessionId}/attendees/${studentId}`);
         await firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}/attendees/${studentId}`, attendance);
+        
         // Actualizar el array completo de asistentes
+        console.log('[markAttendance] Actualizando array de asistentes');
         await firebaseUtils.update(`${SESSIONS_PATH}/${sessionId}`, {
           attendees: updatedAttendees
         });
+
+        console.log('[markAttendance] Asistencia guardada en sesión');
 
         // También guardar en la tabla de asistencia global para que el dashboard pueda acceder
         const globalAttendanceRecord = {
@@ -232,6 +257,7 @@ exports.markAttendance = async (req, res) => {
         };
 
         // Guardar en path general de asistencia
+        console.log('[markAttendance] Guardando en path global de asistencia');
         await firebaseUtils.write(
           `attendance/${new Date().getTime()}_${sessionId}_${studentId}`,
           globalAttendanceRecord
@@ -239,6 +265,7 @@ exports.markAttendance = async (req, res) => {
 
         // También guardar en el path específico del docente si es necesario
         if (session.teacherId) {
+          console.log('[markAttendance] Guardando en path del docente');
           await firebaseUtils.write(
             `teachers/${session.teacherId}/attendance/${new Date().getTime()}_${studentId}`,
             globalAttendanceRecord
@@ -247,37 +274,40 @@ exports.markAttendance = async (req, res) => {
 
         // Guardar/actualizar estudiante en la base de datos
         try {
+          console.log('[markAttendance] Buscando estudiante existente');
           const existingStudent = await getStudentByStudentId(studentId);
           if (existingStudent) {
             // Actualizar estudiante existente usando su id interno
+            console.log('[markAttendance] Actualizando estudiante existente');
             await updateStudent(existingStudent.id, {
               name: studentName,
               email: studentEmail || existingStudent.email,
               phone: studentPhone || existingStudent.phone,
             });
-            console.log(`Student updated: ${studentId}`);
+            console.log(`[markAttendance] Estudiante actualizado: ${studentId}`);
           } else {
             // Crear nuevo estudiante
+            console.log('[markAttendance] Creando nuevo estudiante');
             await createStudent({
               name: studentName,
               email: studentEmail || '',
               studentId: studentId,
               phone: studentPhone || '',
             });
-            console.log(`New student created: ${studentId}`);
+            console.log(`[markAttendance] Nuevo estudiante creado: ${studentId}`);
           }
         } catch (error) {
-          console.error("Error saving student:", error);
+          console.error("[markAttendance] Error guardando estudiante:", error);
           // No fallar la asistencia si hay error guardando el estudiante
         }
 
-        console.log(`Attendance marked: ${studentName || studentId} in session ${sessionId}`);
+        console.log(`[markAttendance] Asistencia completamente guardada: ${studentName || studentId} en sesion ${sessionId}`);
       } catch (error) {
-        console.error("Error saving attendance to Firebase:", error);
+        console.error("[markAttendance] Error guardando asistencia en Firebase:", error.message);
       }
     })();
   } catch (error) {
-    console.error("Error marking attendance:", error);
+    console.error("[markAttendance] Error en markAttendance:", error.message);
     res.status(500).json({
       message: "Error marking attendance",
     });
