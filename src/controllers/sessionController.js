@@ -132,6 +132,23 @@ async function closeSession(req, res) {
   }
 }
 
+// Function to get session attendance
+async function getSessionAttendance(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const attendanceData = await firebaseUtils.readOnce(`attendance/${sessionId}`);
+
+    if (!attendanceData) {
+      return res.status(404).json({ message: "No attendance data found for this session" });
+    }
+
+    res.status(200).json(attendanceData);
+  } catch (error) {
+    console.error("Error getting session attendance:", error);
+    res.status(500).json({ message: "Error getting session attendance" });
+  }
+}
+
 module.exports = {
   createStudent,
   getStudentByStudentId,
@@ -145,4 +162,5 @@ module.exports = {
   getSession,
   listSessions,
   closeSession,
+  getSessionAttendance,
 };
