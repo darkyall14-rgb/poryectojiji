@@ -1,17 +1,25 @@
-const firebaseConfig = {
-        apiKey: "AIzaSyBPTiZPuy5wwR5VcmQvECaCI0QP4MF-n6w",
-        authDomain: "app-z-9ad8d.firebaseapp.com",
-        databaseURL: "https://app-z-9ad8d-default-rtdb.firebaseio.com",
-        projectId: "app-z-9ad8d",
-        storageBucket: "app-z-9ad8d.firebasestorage.app",
-        messagingSenderId: "699960964593",
-        appId: "1:699960964593:web:c4dbf134ef44e71f66c050"
-    };
+// Cargar configuración de Firebase desde el servidor
+let firebaseConfig = null;
+let auth = null;
+let database = null;
 
-// Inicializar Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const database = firebase.database();
+async function loadFirebaseConfig() {
+    try {
+        const response = await fetch('/api/config/firebase');
+        if (!response.ok) throw new Error('Failed to load Firebase config');
+        firebaseConfig = await response.json();
+        
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Asignar referencias globales
+        auth = firebase.auth();
+        database = firebase.database();
+    } catch (error) {
+        console.error('Error loading Firebase config:', error);
+        throw error;
+    }
+}
 
 // Variables globales
 let currentUser = null;
@@ -56,10 +64,16 @@ async function apiFetch(path, options = {}, retries = 3) {
 
 // Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-    setupEventListeners();
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
+    // Cargar configuración de Firebase primero
+    loadFirebaseConfig().then(() => {
+        initializeApp();
+        setupEventListeners();
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+    }).catch(error => {
+        console.error('Fatal error loading Firebase config:', error);
+        document.body.innerHTML = '<div style="padding: 2rem; color: red;">Error de configuración. Por favor recarga la página.</div>';
+    });
 });
 
 // Inicializar la aplicación

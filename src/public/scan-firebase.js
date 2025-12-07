@@ -1,22 +1,35 @@
 // Scan Firebase Realtime Database Integration
 // Script para registrar asistencia del estudiante en tiempo real
 
-const firebaseConfig = {
-    apiKey: "AIzaSyC7-a1mwVT-OuiBaik7YYP5KyK4XUPKqvI",
-    authDomain: "xanes-36606.firebaseapp.com",
-    databaseURL: "https://xanes-36606-default-rtdb.firebaseio.com",
-    projectId: "xanes-36606",
-    storageBucket: "xanes-36606.firebasestorage.app",
-    messagingSenderId: "853187362328",
-    appId: "1:853187362328:web:ce602f8be9a2293e9ecd6d"
-};
+let firebaseConfig = null;
+let database = null;
 
-// Inicializar Firebase si no está inicializado
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+// Cargar configuración de Firebase desde el servidor
+async function loadFirebaseConfig() {
+    try {
+        const response = await fetch('/api/config/firebase');
+        if (!response.ok) throw new Error('Failed to load Firebase config');
+        firebaseConfig = await response.json();
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
+        database = firebase.database();
+        console.log('✅ Firebase initialized from server config');
+    } catch (error) {
+        console.error('Error loading Firebase config:', error);
+        throw error;
+    }
 }
 
-const database = firebase.database();
+// Cargar configuración cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+    loadFirebaseConfig().catch(error => {
+        console.error('Fatal error:', error);
+        alert('Error al cargar configuración. Por favor recarga la página.');
+    });
+});
 
 // ========== VARIABLES GLOBALES ==========
 let currentSession = null;
