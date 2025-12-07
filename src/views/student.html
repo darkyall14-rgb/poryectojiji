@@ -504,6 +504,7 @@
     <script>
         let currentSessionId = null;
         let refreshInterval = null;
+        let attendanceListener = null;
 
         // Mapeo de cursos disponibles
         const coursesData = {
@@ -624,8 +625,12 @@
 
                 // Iniciar actualizaciones automáticas de asistencia
                 refreshAttendance();
+                // Escuchar cambios en tiempo real desde Firebase
+                startRealtimeAttendanceListener(data.sessionId);
+                
+                // También mantener polling como respaldo
                 if (refreshInterval) clearInterval(refreshInterval);
-                refreshInterval = setInterval(refreshAttendance, 5000);
+                refreshInterval = setInterval(refreshAttendance, 10000); // Cada 10 segundos como respaldo
 
                 document.getElementById("attendanceSection").style.display = "block";
 
@@ -663,7 +668,95 @@
             });
         }
 
-        // Actualizar asistencia
+        // Escuchar cambios en tiempo real desde Firebase
+        function startRealtimeAttendanceListener(sessionId) {
+            // Detener listener anterior si existe
+            if (attendanceListener) {
+                attendanceListener();
+                attendanceListener = null;
+            }
+
+            // Esperar a que Firebase esté disponible
+            const initFirebase = () => {
+                if (typeof firebase !== 'undefined' && firebase.database) {
+                    try {
+                        // Inicializar Firebase si no está inicializado
+                        if (!firebase.apps || firebase.apps.length === 0) {
+                            // Obtener configuración desde el servidor
+                            fetch('/api/config/firebase')
+                                .then(res => res.json())
+                                .then(config => {
+                                    firebase.initializeApp(config);
+                                    setupListener(sessionId);
+                                })
+                                .catch(err => {
+                                    console.error('Error loading Firebase config:', err);
+                                    console.warn('⚠️ Usando polling como respaldo');
+                                });
+                        } else {
+                            setupListener(sessionId);
+                        }
+                    } catch (error) {
+                        console.error('Error initializing Firebase:', error);
+                        console.warn('⚠️ Usando polling como respaldo');
+                    }
+                } else {
+                    // Esperar un poco más si Firebase aún no está cargado
+                    setTimeout(initFirebase, 500);
+                }
+            };
+
+            const setupListener = (sessionId) => {
+                const database = firebase.database();
+                const attendeesRef = database.ref(`sessions/${sessionId}/attendees`);
+
+                attendanceListener = attendeesRef.on('value', (snapshot) => {
+                    const attendeesData = snapshot.val();
+                    let attendees = [];
+
+                    if (attendeesData) {
+                        if (Array.isArray(attendeesData)) {
+                            attendees = attendeesData;
+                        } else {
+                            // Convertir objeto a array
+                            attendees = Object.values(attendeesData);
+                        }
+                    }
+
+                    updateAttendanceDisplay(attendees);
+                });
+
+                console.log('✅ Escuchando cambios en tiempo real de asistencia');
+            };
+
+            initFirebase();
+        }
+
+        // Actualizar la visualización de asistencia
+        function updateAttendanceDisplay(attendees) {
+            document.getElementById("attendeeCount").textContent = attendees.length;
+
+            const attendanceList = document.getElementById("attendanceList");
+            if (attendees.length === 0) {
+                attendanceList.innerHTML = '<div class="no-data">Aún no hay asistencia registrada</div>';
+            } else {
+                attendanceList.innerHTML = attendees
+                    .map(
+                        (att) => `
+                    <div class="attendance-item">
+                        <p class="student-name"><i class="fas fa-user"></i> ${att.studentName || att.studentId}</p>
+                        ${att.studentId ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-id-card"></i> ID: ${att.studentId}</p>` : ''}
+                        ${att.studentEmail ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-envelope"></i> ${att.studentEmail}</p>` : ''}
+                        ${att.studentPhone ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-phone"></i> ${att.studentPhone}</p>` : ''}
+                        <p class="timestamp"><i class="fas fa-clock"></i> ${new Date(att.markedAt).toLocaleTimeString("es-ES")}</p>
+                    </div>
+                `
+                    )
+                    .join("");
+            }
+        }
+
+        // Actualizar asistencia (polling como respaldo)
         async function refreshAttendance() {
             if (!currentSessionId) return;
 
@@ -676,26 +769,7 @@
                     return;
                 }
 
-                document.getElementById("attendeeCount").textContent = data.attendees.length;
-
-                const attendanceList = document.getElementById("attendanceList");
-                if (data.attendees.length === 0) {
-                    attendanceList.innerHTML = '<div class="no-data">Aún no hay asistencia registrada</div>';
-                } else {
-                    attendanceList.innerHTML = data.attendees
-                        .map(
-                            (att) => `
-                        <div class="attendance-item">
-                            <p class="student-name"><i class="fas fa-user"></i> ${att.studentName || att.studentId}</p>
-                            ${att.studentId ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-id-card"></i> ID: ${att.studentId}</p>` : ''}
-                            ${att.studentEmail ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-envelope"></i> ${att.studentEmail}</p>` : ''}
-                            ${att.studentPhone ? `<p style="color: var(--text-secondary); font-size: 0.813rem; margin: 0.25rem 0;"><i class="fas fa-phone"></i> ${att.studentPhone}</p>` : ''}
-                            <p class="timestamp"><i class="fas fa-clock"></i> ${new Date(att.markedAt).toLocaleTimeString("es-ES")}</p>
-                        </div>
-                    `
-                        )
-                        .join("");
-                }
+                updateAttendanceDisplay(data.attendees || []);
             } catch (error) {
                 console.error("Error:", error);
             }
@@ -721,6 +795,10 @@
                 alert("✓ Sesión cerrada exitosamente");
 
                 if (refreshInterval) clearInterval(refreshInterval);
+                if (attendanceListener) {
+                    attendanceListener();
+                    attendanceListener = null;
+                }
 
                 currentSessionId = null;
                 document.getElementById("qrDisplay").innerHTML =

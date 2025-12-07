@@ -30,7 +30,7 @@ Esta guía te ayudará a desplegar el proyecto en Render de forma segura sin exp
 - **Branch**: `main`
 - **Runtime**: `Node`
 - **Build Command**: `npm install`
-- **Start Command**: `npm start`
+- **Start Command**: `npm start` ⚠️ **IMPORTANTE**: Debe ser exactamente `npm start`, NO `node script.js`
 
 ### Paso 3: Variables de Entorno
 

@@ -1,0 +1,56 @@
+========================================
+VARIABLES DE ENTORNO PARA RENDER
+========================================
+
+Copia y pega estas variables en Render:
+
+1. FIREBASE_SERVICE_ACCOUNT_JSON
+   [Usa: npm run prepare-env para obtener el valor]
+   O copia todo el contenido de serviceAccountKey.json.json en una sola línea
+
+2. FIREBASE_DATABASE_URL
+   https://app-z-9ad8d-default-rtdb.firebaseio.com
+
+3. FIREBASE_API_KEY
+   AIzaSyBPTiZPuy5wwR5VcmQvECaCI0QP4MF-n6w
+
+4. FIREBASE_AUTH_DOMAIN
+   app-z-9ad8d.firebaseapp.com
+
+5. FIREBASE_PROJECT_ID
+   app-z-9ad8d
+
+6. FIREBASE_STORAGE_BUCKET
+   app-z-9ad8d.firebasestorage.app
+
+7. FIREBASE_MESSAGING_SENDER_ID
+   699960964593
+
+8. FIREBASE_APP_ID
+   1:699960964593:web:c4dbf134ef44e71f66c050
+
+9. PORT (Opcional)
+   5000
+
+10. NODE_ENV (Opcional)
+    production
+
+========================================
+INSTRUCCIONES:
+========================================
+
+1. En Render Dashboard, ve a tu servicio
+2. Haz clic en "Environment" en el menú lateral
+3. Haz clic en "Add Environment Variable"
+4. Agrega cada variable con su valor
+5. Guarda los cambios
+
+========================================
+NOTA IMPORTANTE:
+========================================
+
+Para FIREBASE_SERVICE_ACCOUNT_JSON:
+- Ejecuta: npm run prepare-env
+- Copia el valor que aparece
+- Pégalo en Render (debe ser una sola línea)
+
