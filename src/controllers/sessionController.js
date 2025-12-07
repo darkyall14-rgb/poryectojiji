@@ -196,6 +196,34 @@ exports.markAttendance = async (req, res) => {
       await firebaseUtils.update(`${SESSIONS_PATH}/${sessionId}`, {
         attendees: updatedAttendees
       });
+
+      // También guardar en la tabla de asistencia global para que el dashboard pueda acceder
+      const globalAttendanceRecord = {
+        sessionId,
+        studentId,
+        studentName,
+        studentEmail: studentEmail || null,
+        studentPhone: studentPhone || null,
+        courseId: session.courseId,
+        courseName: session.courseName,
+        teacherId: session.teacherId,
+        markedAt: new Date().toISOString(),
+      };
+
+      // Guardar en path general de asistencia
+      await firebaseUtils.write(
+        `attendance/${new Date().getTime()}_${sessionId}_${studentId}`,
+        globalAttendanceRecord
+      );
+
+      // También guardar en el path específico del docente si es necesario
+      if (session.teacherId) {
+        await firebaseUtils.write(
+          `teachers/${session.teacherId}/attendance/${new Date().getTime()}_${studentId}`,
+          globalAttendanceRecord
+        );
+      }
+
     } catch (error) {
       console.error("Error saving attendance to Firebase:", error);
       return res.status(500).json({

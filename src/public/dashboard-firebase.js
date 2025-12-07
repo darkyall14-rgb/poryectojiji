@@ -108,10 +108,10 @@ function listenToCourses(uid) {
 }
 
 /**
- * Escuchar cambios en la asistencia en tiempo real
+ * Escuchar cambios en la asistencia en tiempo real (ahora desde las sesiones activas)
  */
 function listenToAttendance(uid) {
-    const path = `teachers/${uid}/attendance`;
+    const path = `sessions`;
     
     if (firebaseListeners['attendance']) {
         firebaseListeners['attendance']();
@@ -120,12 +120,35 @@ function listenToAttendance(uid) {
     const ref = database.ref(path);
     const listener = ref.on('value', (snapshot) => {
         attendance = [];
-        snapshot.forEach((childSnapshot) => {
-            attendance.push({
-                key: childSnapshot.key,
-                ...childSnapshot.val()
+        const sessionsData = snapshot.val();
+        
+        if (sessionsData) {
+            Object.values(sessionsData).forEach((session) => {
+                // Solo procesar sesiones de este docente
+                if (session.teacherId === uid && session.attendees) {
+                    const attendeesData = session.attendees;
+                    
+                    // Convertir attendees (puede ser array u objeto) a items individuales
+                    if (Array.isArray(attendeesData)) {
+                        attendeesData.forEach((att) => {
+                            attendance.push({
+                                key: att.studentId || att.id,
+                                ...att,
+                                sessionId: session.sessionId
+                            });
+                        });
+                    } else if (typeof attendeesData === 'object') {
+                        Object.entries(attendeesData).forEach(([key, att]) => {
+                            attendance.push({
+                                key: key,
+                                ...att,
+                                sessionId: session.sessionId
+                            });
+                        });
+                    }
+                }
             });
-        });
+        }
 
         console.log('📝 Registros de asistencia actualizados (en vivo):', attendance);
         

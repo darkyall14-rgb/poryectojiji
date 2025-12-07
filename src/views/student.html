@@ -596,6 +596,10 @@
                 return;
             }
 
+            // Disable button to prevent multiple clicks
+            const generateBtn = event.currentTarget;
+            generateBtn.disabled = true;
+
             saveTeacherData();
 
             const statusEl = document.getElementById("createStatus");
@@ -637,6 +641,9 @@
             } catch (error) {
                 console.error("Error:", error);
                 setStatus(statusEl, `❌ ${error.message}`, "error");
+            } finally {
+                // Re-enable button
+                generateBtn.disabled = false;
             }
         }
 
@@ -672,64 +679,55 @@
         function startRealtimeAttendanceListener(sessionId) {
             // Detener listener anterior si existe
             if (attendanceListener) {
-                attendanceListener();
+                try {
+                    attendanceListener();
+                } catch (e) {
+                    console.log('Previous listener already removed');
+                }
                 attendanceListener = null;
             }
 
-            // Esperar a que Firebase esté disponible
-            const initFirebase = () => {
+            // Función recursiva para esperar a que Firebase esté listo
+            const setupListener = (retries = 0) => {
+                if (retries > 10) {
+                    console.warn('⚠️ Firebase no disponible después de 10 intentos. Usando polling como respaldo');
+                    return;
+                }
+
                 if (typeof firebase !== 'undefined' && firebase.database) {
                     try {
-                        // Inicializar Firebase si no está inicializado
-                        if (!firebase.apps || firebase.apps.length === 0) {
-                            // Obtener configuración desde el servidor
-                            fetch('/api/config/firebase')
-                                .then(res => res.json())
-                                .then(config => {
-                                    firebase.initializeApp(config);
-                                    setupListener(sessionId);
-                                })
-                                .catch(err => {
-                                    console.error('Error loading Firebase config:', err);
-                                    console.warn('⚠️ Usando polling como respaldo');
-                                });
-                        } else {
-                            setupListener(sessionId);
-                        }
+                        const database = firebase.database();
+                        const attendeesRef = database.ref(`sessions/${sessionId}/attendees`);
+
+                        attendanceListener = attendeesRef.on('value', (snapshot) => {
+                            const attendeesData = snapshot.val();
+                            let attendees = [];
+
+                            if (attendeesData) {
+                                if (Array.isArray(attendeesData)) {
+                                    attendees = attendeesData;
+                                } else {
+                                    // Convertir objeto a array
+                                    attendees = Object.values(attendeesData);
+                                }
+                            }
+
+                            updateAttendanceDisplay(attendees);
+                            console.log('📊 Asistencia actualizada en tiempo real:', attendees);
+                        });
+
+                        console.log('✅ Escuchando cambios en tiempo real de asistencia');
                     } catch (error) {
-                        console.error('Error initializing Firebase:', error);
+                        console.error('Error setting up Firebase listener:', error);
                         console.warn('⚠️ Usando polling como respaldo');
                     }
                 } else {
                     // Esperar un poco más si Firebase aún no está cargado
-                    setTimeout(initFirebase, 500);
+                    setTimeout(() => setupListener(retries + 1), 300);
                 }
             };
 
-            const setupListener = (sessionId) => {
-                const database = firebase.database();
-                const attendeesRef = database.ref(`sessions/${sessionId}/attendees`);
-
-                attendanceListener = attendeesRef.on('value', (snapshot) => {
-                    const attendeesData = snapshot.val();
-                    let attendees = [];
-
-                    if (attendeesData) {
-                        if (Array.isArray(attendeesData)) {
-                            attendees = attendeesData;
-                        } else {
-                            // Convertir objeto a array
-                            attendees = Object.values(attendeesData);
-                        }
-                    }
-
-                    updateAttendanceDisplay(attendees);
-                });
-
-                console.log('✅ Escuchando cambios en tiempo real de asistencia');
-            };
-
-            initFirebase();
+            setupListener();
         }
 
         // Actualizar la visualización de asistencia
