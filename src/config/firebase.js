@@ -24,7 +24,7 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   }
 } else {
   // Fallback: intentar cargar desde ubicación por defecto
-  const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json.json');
+  const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
   try {
     serviceAccount = require(serviceAccountPath);
   } catch (error) {
