@@ -15,6 +15,12 @@ async function loadFirebaseConfig() {
         // Asignar referencias globales
         auth = firebase.auth();
         database = firebase.database();
+        
+        // Exponer en window para otros scripts
+        window.auth = auth;
+        window.database = database;
+        
+        console.log('✅ Firebase initialized from server config');
     } catch (error) {
         console.error('Error loading Firebase config:', error);
         throw error;

@@ -1,27 +1,41 @@
 // Dashboard Firebase Realtime Database Integration
 // Este script maneja la integración en tiempo real con Firebase para el dashboard
-// Nota: auth y database ya están inicializados en script.js
+// Nota: auth y database se inicializan en script.js de forma asíncrona
 
 // ========== VARIABLES GLOBALES ==========
 let firebaseListeners = {}; // Almacenar referencias de listeners para poder desuscribirse
 
 // ========== INICIALIZACIÓN ==========
 
-// Inicializar listeners cuando el usuario inicia sesión
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        currentUser = user;
-        console.log('✅ Usuario autenticado:', user.email);
-        
-        // Iniciar listeners de tiempo real
-        initializeRealtimeListeners();
-    } else {
-        currentUser = null;
-        console.log('❌ Usuario no autenticado');
-        
-        // Desuscribirse de todos los listeners
-        unsubscribeAllListeners();
+// Esperar a que Firebase esté inicializado antes de usar auth
+function initializeDashboardListeners() {
+    if (!window.auth) {
+        console.warn('⚠️ Firebase no está inicializado aún, esperando...');
+        setTimeout(initializeDashboardListeners, 500); // Reintentar en 500ms
+        return;
     }
+    
+    // Inicializar listeners cuando el usuario inicia sesión
+    window.auth.onAuthStateChanged((user) => {
+        if (user) {
+            currentUser = user;
+            console.log('✅ Usuario autenticado:', user.email);
+            
+            // Iniciar listeners de tiempo real
+            initializeRealtimeListeners();
+        } else {
+            currentUser = null;
+            console.log('❌ Usuario no autenticado');
+            
+            // Desuscribirse de todos los listeners
+            unsubscribeAllListeners();
+        }
+    });
+}
+
+// Iniciar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDashboardListeners();
 });
 
 // ========== FUNCIONES DE LISTENERS EN TIEMPO REAL ==========
