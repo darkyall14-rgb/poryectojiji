@@ -55,6 +55,8 @@ function initializeApp() {
             currentUser = user;
             showDashboard();
             loadUserData();
+            // Iniciar listener de actualizaciones de asistencia
+            watchAttendanceUpdates();
         } else {
             currentUser = null;
             showLogin();
@@ -312,12 +314,15 @@ async function loadCourses() {
 }
 
 // Cargar registros de asistencia
+// Cargar registros de asistencia
 async function loadAttendanceRecords() {
     try {
         // Try API all attendance
         const apiAttendance = await apiFetch('/api/attendance');
         attendanceRecords = Array.isArray(apiAttendance) ? apiAttendance : [];
         renderAttendanceCalendar();
+        // Cargar asistencia del día actual
+        loadTodayAttendance();
     } catch (error) {
         try {
             const snapshot = await database.ref('teachers/' + currentUser.uid + '/attendance').once('value');
@@ -329,12 +334,233 @@ async function loadAttendanceRecords() {
                 });
             }
             renderAttendanceCalendar();
+            loadTodayAttendance();
         } catch (fbError) {
             console.error('Error loading attendance records:', fbError);
             attendanceRecords = [];
             renderAttendanceCalendar();
         }
     }
+}
+
+// ========== FUNCIONES PARA MOSTRAR ASISTENCIA POR FECHA ==========
+
+/**
+ * Cargar y mostrar asistencia de hoy
+ */
+async function loadTodayAttendance() {
+    const today = new Date();
+    const todayDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Establecer el valor del input de fecha a hoy
+    const dateInput = document.getElementById('attendanceDateFilter');
+    if (dateInput) {
+        dateInput.value = todayDate;
+    }
+    
+    // Filtrar y mostrar asistencia de hoy
+    filterAttendanceByDate(todayDate);
+}
+
+/**
+ * Filtrar asistencia por fecha
+ */
+async function filterAttendanceByDate(selectedDate = null) {
+    const dateInput = document.getElementById('attendanceDateFilter');
+    const filterDate = selectedDate || (dateInput ? dateInput.value : null);
+    
+    if (!filterDate) {
+        showTodayAttendanceByDefault();
+        return;
+    }
+
+    try {
+        // Obtener todas las sesiones y sus asistentes
+        const response = await fetch('/api/sessions');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        let sessionsData = await response.json();
+        
+        // Asegurar que sea un array
+        if (typeof sessionsData === 'object' && !Array.isArray(sessionsData) && sessionsData !== null) {
+            sessionsData = Object.values(sessionsData);
+        }
+        
+        if (!Array.isArray(sessionsData)) {
+            console.error('Invalid sessions data:', sessionsData);
+            renderTodayAttendance([]);
+            return;
+        }
+
+        // Filtrar asistencia de la fecha seleccionada
+        const attendanceToday = [];
+        
+        sessionsData.forEach((session) => {
+            if (!session) return;
+            
+            if (session.attendees && Array.isArray(session.attendees)) {
+                session.attendees.forEach((attendee) => {
+                    if (!attendee.markedAt) return;
+                    
+                    // Comparar fechas
+                    const attendeeDate = new Date(attendee.markedAt).toISOString().split('T')[0];
+                    
+                    if (attendeeDate === filterDate) {
+                        attendanceToday.push({
+                            studentName: attendee.studentName,
+                            studentId: attendee.studentId,
+                            studentEmail: attendee.studentEmail,
+                            studentPhone: attendee.studentPhone,
+                            courseName: session.courseName,
+                            courseId: session.courseId,
+                            markedAt: attendee.markedAt,
+                            sessionId: session.sessionId
+                        });
+                    }
+                });
+            } else if (session.attendees && typeof session.attendees === 'object') {
+                // Si es un objeto, convertir a array
+                Object.values(session.attendees).forEach((attendee) => {
+                    if (!attendee || !attendee.markedAt) return;
+                    
+                    const attendeeDate = new Date(attendee.markedAt).toISOString().split('T')[0];
+                    
+                    if (attendeeDate === filterDate) {
+                        attendanceToday.push({
+                            studentName: attendee.studentName,
+                            studentId: attendee.studentId,
+                            studentEmail: attendee.studentEmail,
+                            studentPhone: attendee.studentPhone,
+                            courseName: session.courseName,
+                            courseId: session.courseId,
+                            markedAt: attendee.markedAt,
+                            sessionId: session.sessionId
+                        });
+                    }
+                });
+            }
+        });
+
+        renderTodayAttendance(attendanceToday);
+    } catch (error) {
+        console.error('Error loading attendance:', error);
+        renderTodayAttendance([]);
+    }
+}
+
+/**
+ * Mostrar asistencia de hoy por defecto
+ */
+function showTodayAttendanceByDefault() {
+    const today = new Date();
+    const todayDate = today.toISOString().split('T')[0];
+    filterAttendanceByDate(todayDate);
+}
+
+/**
+ * Renderizar lista de asistencia del día
+ */
+function renderTodayAttendance(attendanceList) {
+    const container = document.getElementById('todayAttendanceList');
+    if (!container) return;
+
+    if (!attendanceList || attendanceList.length === 0) {
+        container.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-secondary); grid-column: 1/-1;"><i class="fas fa-inbox" style="font-size: 2rem; display: block; margin-bottom: 1rem;"></i>No hay registros de asistencia para este día</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+    
+    // Agrupar por curso
+    const groupedByCourse = {};
+    attendanceList.forEach((att) => {
+        const courseKey = att.courseId || 'sin-curso';
+        if (!groupedByCourse[courseKey]) {
+            groupedByCourse[courseKey] = {
+                courseName: att.courseName || 'Sin nombre',
+                students: []
+            };
+        }
+        groupedByCourse[courseKey].students.push(att);
+    });
+
+    // Renderizar cada curso con sus estudiantes
+    Object.entries(groupedByCourse).forEach(([courseId, courseData]) => {
+        courseData.students.forEach((att, index) => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.25rem; border-left: 4px solid var(--primary-color); transition: var(--transition);';
+            
+            const time = new Date(att.markedAt).toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                    <div>
+                        <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0; font-size: 1rem;">
+                            <i class="fas fa-user-check" style="color: var(--success-color); margin-right: 0.5rem;"></i>
+                            ${att.studentName || 'Estudiante sin nombre'}
+                        </h4>
+                    </div>
+                    <span style="background: rgba(16, 185, 129, 0.1); color: var(--success-color); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Presente</span>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem;">
+                    ${att.studentId ? `
+                        <div style="color: var(--text-secondary);">
+                            <i class="fas fa-id-card" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                            <strong>ID:</strong> ${att.studentId}
+                        </div>
+                    ` : ''}
+                    
+                    <div style="color: var(--text-secondary);">
+                        <i class="fas fa-clock" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                        <strong>Hora:</strong> ${time}
+                    </div>
+                    
+                    ${att.studentEmail ? `
+                        <div style="color: var(--text-secondary); grid-column: 1/-1;">
+                            <i class="fas fa-envelope" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                            <strong>Email:</strong> ${att.studentEmail}
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.875rem;">
+                    <i class="fas fa-book" style="color: var(--secondary-color); margin-right: 0.5rem;"></i>
+                    <strong>Curso:</strong> ${courseData.courseName}
+                </div>
+            `;
+            
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-2px)';
+                card.style.boxShadow = 'var(--shadow-lg)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+                card.style.boxShadow = 'none';
+            });
+            
+            container.appendChild(card);
+        });
+    });
+}
+
+// Establecer listener para cambios en asistencia en tiempo real
+function watchAttendanceUpdates() {
+    if (!currentUser) return;
+    
+    // Escuchar cambios en sesiones en tiempo real
+    const sessionsRef = database.ref('sessions');
+    sessionsRef.on('value', () => {
+        // Recargar asistencia cuando hay cambios
+        filterAttendanceByDate();
+    });
 }
 
 // Manejar agregar estudiante

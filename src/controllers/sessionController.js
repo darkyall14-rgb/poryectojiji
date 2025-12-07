@@ -84,9 +84,11 @@ exports.listSessions = async (req, res) => {
     if (!allSessionsData) {
       return res.json([]);
     }
-    const allSessions = Object.values(allSessionsData).filter(
-      (s) => s.status === 'active'
-    );
+    // Retornar todas las sesiones (tanto activas como cerradas) para poder ver historial
+    const allSessions = Object.values(allSessionsData).map(s => ({
+      ...s,
+      id: s.sessionId // Asegurar que tenga id
+    }));
     res.json(allSessions);
   } catch (error) {
     console.error("Error listing sessions:", error);
