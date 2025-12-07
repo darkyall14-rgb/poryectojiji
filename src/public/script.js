@@ -19,6 +19,7 @@ let students = [];
 let courses = [];
 let attendanceRecords = [];
 let editingStudentKey = null;
+let editingCourseId = null;
 let cameraStream = null;
 let scanInterval = null;
 let qrScannerEnabled = false;
@@ -625,19 +626,31 @@ async function handleAddCourse(e) {
     const room = document.getElementById('courseRoom')?.value || '';
     
     try {
-        // Guardar en API (fuente de verdad)
-        await apiFetch('/api/courses', { 
-            method: 'POST', 
-            body: JSON.stringify({ name, code, description, schedule, instructor, room }) 
-        });
+        if (editingCourseId) {
+            // Actualizar curso existente
+            console.log('📝 Actualizando curso:', editingCourseId);
+            await apiFetch(`/api/courses/${editingCourseId}`, { 
+                method: 'PUT', 
+                body: JSON.stringify({ name, code, description, schedule, instructor, room }) 
+            });
+            showNotification('Unidad didáctica actualizada exitosamente', 'success');
+        } else {
+            // Crear nuevo curso
+            console.log('✨ Creando nuevo curso');
+            await apiFetch('/api/courses', { 
+                method: 'POST', 
+                body: JSON.stringify({ name, code, description, schedule, instructor, room }) 
+            });
+            showNotification('Unidad didáctica creada exitosamente', 'success');
+        }
         
         closeModal('addCourseModal');
         document.getElementById('addCourseForm').reset();
+        editingCourseId = null;
         loadCourses();
-        showNotification('Unidad didáctica creada exitosamente', 'success');
     } catch (error) {
-        console.error('Error creating course:', error);
-        showNotification('Error al crear unidad didáctica: ' + error.message, 'error');
+        console.error('Error al guardar curso:', error);
+        showNotification('Error al guardar unidad didáctica: ' + error.message, 'error');
     }
 }
 
@@ -899,6 +912,17 @@ function showAddStudentModal() {
 }
 
 function showAddCourseModal() {
+    console.log('⊕ Abriendo modal para crear nuevo curso');
+    
+    // Resetear estado de edición
+    editingCourseId = null;
+    document.getElementById('addCourseForm').reset();
+    
+    // Restaurar título y botón del modal
+    document.querySelector('#addCourseModal .modal-header h3').textContent = 'Nueva Unidad Didáctica';
+    document.querySelector('#addCourseForm button[type="submit"]').textContent = 'Crear';
+    
+    // Abrir modal
     document.getElementById('addCourseModal').classList.add('active');
 }
 
@@ -1044,16 +1068,44 @@ async function deleteStudent(studentId) {
 function editCourse(courseId) {
     const course = courses.find(c => c.id === courseId);
     if (course) {
-        // Implementar edición de curso
-        showNotification('Función de edición en desarrollo', 'info');
+        console.log('✏️ Editando curso:', course);
+        
+        // Guardar ID para saber que estamos editando
+        editingCourseId = courseId;
+        
+        // Llenar el formulario con los datos del curso
+        document.getElementById('courseName').value = course.name || '';
+        document.getElementById('courseCode').value = course.code || '';
+        document.getElementById('courseDescription').value = course.description || '';
+        document.getElementById('courseSchedule').value = course.schedule || '';
+        document.getElementById('courseInstructor').value = course.instructor || '';
+        document.getElementById('courseRoom').value = course.room || '';
+        
+        // Actualizar el título y botón del modal
+        document.querySelector('#addCourseModal .modal-header h3').textContent = 'Editar Unidad Didáctica';
+        document.querySelector('#addCourseForm button[type="submit"]').textContent = 'Actualizar';
+        
+        // Abrir el modal
+        document.getElementById('addCourseModal').classList.add('active');
     }
 }
 
 async function deleteCourse(courseId) {
-    if (confirm('¿Estás seguro de que quieres eliminar esta unidad didáctica?')) {
+    const course = courses.find(c => c.id === courseId);
+    const courseName = course ? course.name : 'la unidad';
+    
+    if (confirm(`¿Estás seguro de que quieres eliminar "${courseName}"?`)) {
         try {
+            console.log('🗑️ Eliminando curso:', courseId);
+            
             // Eliminar a través de la API
             await apiFetch(`/api/courses/${courseId}`, { method: 'DELETE' });
+            
+            // Si estábamos editando este curso, limpiar el estado
+            if (editingCourseId === courseId) {
+                editingCourseId = null;
+                closeModal('addCourseModal');
+            }
             
             loadCourses();
             showNotification('Unidad didáctica eliminada exitosamente', 'success');
