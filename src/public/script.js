@@ -25,15 +25,33 @@ let scanInterval = null;
 let qrScannerEnabled = false;
 let currentYear = new Date().getFullYear();
 
-// API helper (fallback to Firebase on error)
-async function apiFetch(path, options = {}) {
-    const resp = await fetch(path, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    if (resp.status === 204) return null;
-    return resp.json();
+// API helper with retry logic for 502 errors
+async function apiFetch(path, options = {}, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const resp = await fetch(path, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options,
+            });
+            if (!resp.ok) {
+                // 502 means server not ready, retry after delay
+                if (resp.status === 502 && attempt < retries) {
+                    console.warn(`[apiFetch] 502 on ${path}, retrying (${attempt}/${retries})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // exponential backoff
+                    continue;
+                }
+                throw new Error(`HTTP ${resp.status}`);
+            }
+            if (resp.status === 204) return null;
+            return resp.json();
+        } catch (error) {
+            if (attempt === retries) {
+                throw error;
+            }
+            console.warn(`[apiFetch] Error on ${path}, retrying (${attempt}/${retries})...`, error.message);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+    }
 }
 
 // Inicialización de la aplicación
@@ -381,13 +399,10 @@ async function filterAttendanceByDate(selectedDate = null) {
     }
 
     try {
-        // Obtener todas las sesiones y sus asistentes
-        const response = await fetch('/api/sessions');
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        // Obtener todas las sesiones y sus asistentes (with retry)
+        const response = await apiFetch('/api/sessions');
         
-        let sessionsData = await response.json();
+        let sessionsData = response;
         
         // Asegurar que sea un array
         if (typeof sessionsData === 'object' && !Array.isArray(sessionsData) && sessionsData !== null) {
@@ -409,7 +424,6 @@ async function filterAttendanceByDate(selectedDate = null) {
             if (session.attendees && Array.isArray(session.attendees)) {
                 session.attendees.forEach((attendee) => {
                     if (!attendee.markedAt) return;
-                    
                     // Comparar fechas
                     const attendeeDate = new Date(attendee.markedAt).toISOString().split('T')[0];
                     
@@ -452,6 +466,20 @@ async function filterAttendanceByDate(selectedDate = null) {
         renderTodayAttendance(attendanceToday);
     } catch (error) {
         console.error('Error loading attendance:', error);
+        // Show user-friendly error with retry suggestion
+        const todayList = document.getElementById('todayAttendanceList');
+        if (todayList) {
+            todayList.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: var(--text-secondary); grid-column: 1/-1; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--warning-color); font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                    <p style="margin-bottom: 1rem;">Servidor temporalmente no disponible</p>
+                    <small style="color: var(--text-secondary);">Por favor, intenta recargar la página en unos segundos</small>
+                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Recargar página
+                    </button>
+                </div>
+            `;
+        }
         renderTodayAttendance([]);
     }
 }

@@ -33,7 +33,7 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   }
 }
 
-const databaseURL = process.env.FIREBASE_DATABASE_URL || "https://app-z-9ad8d-default-rtdb.firebaseio.com";
+const databaseURL = process.env.FIREBASE_DATABASE_URL || "https://xanes-36606-default-rtdb.firebaseio.com";
 
 // Inicializar Firebase Admin SDK
 if (!admin.apps.length) {

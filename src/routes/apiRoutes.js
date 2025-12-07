@@ -6,6 +6,11 @@ const courseController = require("../controllers/courseController");
 const attendanceController = require("../controllers/attendanceController");
 const sessionController = require("../controllers/sessionController");
 
+// ============ HEALTH CHECK ============
+router.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // ============ STUDENTS ============
 router.get("/students", studentController.list);
 router.get("/students/:id", studentController.get);

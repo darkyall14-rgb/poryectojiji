@@ -2,13 +2,13 @@
 // Script para crear sesiones QR y monitorear asistencia en tiempo real
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBPTiZPuy5wwR5VcmQvECaCI0QP4MF-n6w",
-    authDomain: "app-z-9ad8d.firebaseapp.com",
-    databaseURL: "https://app-z-9ad8d-default-rtdb.firebaseio.com",
-    projectId: "app-z-9ad8d",
-    storageBucket: "app-z-9ad8d.firebasestorage.app",
-    messagingSenderId: "699960964593",
-    appId: "1:699960964593:web:c4dbf134ef44e71f66c050"
+    apiKey: "AIzaSyC7-a1mwVT-OuiBaik7YYP5KyK4XUPKqvI",
+    authDomain: "xanes-36606.firebaseapp.com",
+    databaseURL: "https://xanes-36606-default-rtdb.firebaseio.com",
+    projectId: "xanes-36606",
+    storageBucket: "xanes-36606.firebasestorage.app",
+    messagingSenderId: "853187362328",
+    appId: "1:853187362328:web:ce602f8be9a2293e9ecd6d"
 };
 
 // Inicializar Firebase si no está inicializado
