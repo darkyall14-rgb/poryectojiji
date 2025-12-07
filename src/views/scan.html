@@ -514,6 +514,14 @@
 
             console.log("Inicializando cámara...");
             console.log("jsQR disponible:", typeof jsQR);
+            
+            // Verificar que jsQR está cargado
+            if (typeof jsQR === 'undefined') {
+                console.error("ERROR: jsQR no está cargado");
+                setStatus(statusDiv, "Error: librería QR no cargada. Recarga la página.", "error");
+                document.getElementById("retryBtn").style.display = "block";
+                return;
+            }
 
             navigator.mediaDevices
                 .getUserMedia({
@@ -554,36 +562,64 @@
                         
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        if (!imgData || !imgData.data) {
+                            console.warn("ImageData no válido");
+                            requestAnimationFrame(scanQR);
+                            return;
+                        }
+                        
                         const code = jsQR(imgData.data, imgData.width, imgData.height);
 
                         if (code && !hasScanned) {
+                            console.log("QR DETECTADO:", code);
                             hasScanned = true;
                             scanning = false;
                             // Extraer sessionId del QR
                             const qrData = code.data;
-                            console.log("QR detectado:", qrData);
+                            console.log("Datos del QR:", qrData);
+                            console.log("Tipo:", typeof qrData);
 
                             try {
-                                // Intentar parsear como URL completa
                                 let extractedSessionId = null;
                                 
+                                console.log("Intentando extraer sessionId...");
+                                
                                 // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
-                                if (qrData.startsWith('http://') || qrData.startsWith('https://')) {
-                                    const url = new URL(qrData);
-                                    extractedSessionId = url.searchParams.get("sessionId");
+                                if (qrData.includes('http://') || qrData.includes('https://')) {
+                                    console.log("Detectado como URL absoluta");
+                                    try {
+                                        const url = new URL(qrData);
+                                        extractedSessionId = url.searchParams.get("sessionId");
+                                        console.log("SessionId de URL absoluta:", extractedSessionId);
+                                    } catch (urlError) {
+                                        console.log("Error parseando URL:", urlError);
+                                    }
                                 } 
-                                // Si es URL relativa (/scan?sessionId=xxx)
-                                else if (qrData.includes('sessionId=')) {
-                                    const urlParams = new URLSearchParams(qrData.split('?')[1]);
-                                    extractedSessionId = urlParams.get("sessionId");
+                                // Si contiene sessionId directamente
+                                if (!extractedSessionId && qrData.includes('sessionId=')) {
+                                    console.log("Detectado como URL relativa o parámetro");
+                                    const parts = qrData.split('?');
+                                    if (parts.length > 1) {
+                                        const urlParams = new URLSearchParams(parts[1]);
+                                        extractedSessionId = urlParams.get("sessionId");
+                                        console.log("SessionId de parámetros:", extractedSessionId);
+                                    }
+                                }
+                                // Intenta extraer UUID directamente (si el QR solo contiene el UUID)
+                                if (!extractedSessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrData)) {
+                                    console.log("Detectado como UUID puro");
+                                    extractedSessionId = qrData;
                                 }
                                 
                                 sessionId = extractedSessionId;
-                                console.log("Session ID extraido:", sessionId);
+                                console.log("Session ID final extraido:", sessionId);
 
                                 if (sessionId) {
+                                    console.log("SessionId válido, registrando asistencia...");
                                     registerAttendance();
                                 } else {
+                                    console.log("SessionId no encontrado, mostrando error");
                                     setStatus(statusDiv, "QR no valido - sessionId no encontrado", "error");
                                     hasScanned = false;
                                     scanning = true;
