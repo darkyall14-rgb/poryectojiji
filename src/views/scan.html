@@ -458,7 +458,7 @@
             const email = document.getElementById("studentEmail").value.trim();
             const phone = document.getElementById("studentPhone").value.trim();
 
-            console.log("Datos del formulario:", { name, id, email, phone });
+            console.log("📋 Datos del formulario:", { name, id, email, phone });
 
             if (!name || !id || !email || !phone) {
                 setStatus(document.getElementById("dataStatus"), "Por favor completa todos los campos requeridos", "error");
@@ -471,7 +471,7 @@
             studentEmail = email;
             studentPhone = phone;
 
-            console.log("Variables globales establecidas:", {
+            console.log("✅ Variables globales establecidas:", {
                 studentId,
                 studentName,
                 studentEmail,
@@ -482,22 +482,28 @@
                 // Si hay usuario autenticado, guardar en Firebase
                 const user = firebase.auth().currentUser;
                 if (user) {
-                    console.log("Guardando datos en Firebase para usuario:", user.uid);
+                    console.log("💾 Guardando datos en Firebase para usuario:", user.uid);
                     await db.ref(`students/${user.uid}`).update({
                         id: id,
                         name: name,
                         email: email,
                         phone: phone
                     });
-                    console.log("Datos guardados en Firebase correctamente");
+                    console.log("✅ Datos guardados en Firebase correctamente");
                 }
             } catch (error) {
-                console.error("Error guardando datos en Firebase:", error);
+                console.error("❌ Error guardando datos en Firebase:", error);
             }
 
             // Mostrar sección de escaneo
+            console.log("📷 Iniciando sección de escaneo...");
             document.getElementById("studentDataSection").style.display = "none";
             document.getElementById("scanSection").style.display = "block";
+
+            // Iniciar cámara
+            console.log("🎥 Llamando a initializeCamera()");
+            initializeCamera();
+        }
 
             // Iniciar cámara
             initializeCamera();
@@ -507,25 +513,29 @@
         function initializeCamera() {
             const statusDiv = document.getElementById("status");
             
-            console.log("Inicializando cámara con html5-qrcode...");
-            console.log("Html5Qrcode disponible:", typeof Html5Qrcode);
+            console.log("\n========== INICIALIZANDO CÁMARA ==========");
+            console.log("🔍 Verificando librería html5-qrcode...");
+            console.log("Tipo:", typeof Html5Qrcode);
             
             // Función para esperar a que html5-qrcode esté disponible
             function waitForHtml5Qrcode(callback, attempts = 0) {
                 if (typeof Html5Qrcode !== 'undefined') {
-                    console.log("Html5Qrcode cargado exitosamente");
+                    console.log("✅ Html5Qrcode cargado exitosamente en intento", attempts);
                     callback();
                 } else if (attempts < 20) {
-                    console.log("Esperando html5-qrcode...", attempts);
+                    console.log(`⏳ Esperando html5-qrcode (intento ${attempts}/20)...`);
                     setTimeout(() => waitForHtml5Qrcode(callback, attempts + 1), 500);
                 } else {
-                    console.error("ERROR: Html5Qrcode no se cargó después de 10 segundos");
-                    setStatus(statusDiv, "Error: librería QR no cargada. Recarga la página.", "error");
+                    console.error("❌ ERROR: Html5Qrcode no se cargó después de 10 segundos");
+                    setStatus(statusDiv, "❌ Error: librería QR no cargada. Recarga la página.", "error");
+                    document.getElementById("retryBtn").textContent = "Recargar Página";
+                    document.getElementById("retryBtn").onclick = () => location.reload();
                     document.getElementById("retryBtn").style.display = "block";
                 }
             }
             
             waitForHtml5Qrcode(() => {
+                console.log("📱 Librería lista, iniciando escaneo...");
                 startQrScanning(statusDiv);
             });
         }
@@ -534,13 +544,14 @@
         let html5QrCodeInstance = null;
 
         function startQrScanning(statusDiv) {
-            console.log("Iniciando escaneo QR...");
+            console.log("\n========== INICIANDO ESCANEO QR ==========");
             
             try {
                 // Crear instancia con el ID del div contenedor
+                console.log("🔧 Creando instancia de Html5Qrcode...");
                 html5QrCodeInstance = new Html5Qrcode("qr-reader");
                 
-                console.log("Instancia de Html5Qrcode creada, iniciando escaneo...");
+                console.log("✅ Instancia de Html5Qrcode creada");
                 
                 // Configuración de la cámara
                 const config = {
@@ -550,6 +561,8 @@
                     disableFlip: false
                 };
 
+                console.log("🎥 Iniciando cámara con configuración:", config);
+
                 // Iniciar el escaneo
                 html5QrCodeInstance.start(
                     { facingMode: "environment" },
@@ -557,18 +570,17 @@
                     (decodedText) => {
                         // QR detectado
                         if (!hasScanned) {
-                            console.log("✅ QR DETECTADO:", decodedText);
+                            console.log("\n🎉 ¡¡QR DETECTADO!!");
+                            console.log("📱 Contenido del QR:", decodedText);
                             hasScanned = true;
                             scanning = false;
                             
                             // Pausar el escaneo
                             html5QrCodeInstance.pause(true);
+                            console.log("⏸️  Escaneo pausado");
                             
-                            // El decodedText ya es el string del QR
-                            const qrData = decodedText;
-                            console.log("Datos del QR:", qrData);
-                            
-                            processQRData(qrData, statusDiv);
+                            // Procesar datos del QR
+                            processQRData(decodedText, statusDiv);
                         }
                     },
                     (errorMessage) => {
@@ -576,64 +588,83 @@
                     }
                 ).catch(err => {
                     console.error("❌ Error iniciando cámara:", err);
-                    setStatus(statusDiv, "Error al acceder a la cámara: " + err.message, "error");
+                    console.error("Detalles del error:", err.message);
+                    setStatus(statusDiv, "❌ Error al acceder a la cámara: " + err.message, "error");
+                    document.getElementById("retryBtn").textContent = "Permitir Acceso a Cámara";
+                    document.getElementById("retryBtn").onclick = () => location.reload();
                     document.getElementById("retryBtn").style.display = "block";
                 });
 
-                setStatus(statusDiv, "Buscando codigo QR...", "loading");
+                setStatus(statusDiv, "📷 Buscando código QR...", "loading");
                 scanning = true;
+                console.log("========== ESCANEO INICIADO ==========\n");
 
             } catch (error) {
                 console.error("❌ Error en startQrScanning:", error);
-                setStatus(statusDiv, "Error al inicializar escaneo: " + error.message, "error");
+                console.error("Detalles del error:", error.message);
+                setStatus(statusDiv, "❌ Error al inicializar escaneo: " + error.message, "error");
+                document.getElementById("retryBtn").textContent = "Reintentar";
+                document.getElementById("retryBtn").onclick = () => location.reload();
                 document.getElementById("retryBtn").style.display = "block";
             }
         }
 
         function processQRData(qrData, statusDiv) {
+            console.log("\n========== PROCESANDO DATOS DEL QR ==========");
+            console.log("📊 Datos crudos del QR:", qrData);
+            
             try {
                 let extractedSessionId = null;
                 
-                console.log("Intentando extraer sessionId...");
+                console.log("🔍 Intentando extraer sessionId...");
                 
                 // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
                 if (qrData.includes('http://') || qrData.includes('https://')) {
-                    console.log("Detectado como URL absoluta");
+                    console.log("🌐 Detectado como URL absoluta");
                     try {
                         const url = new URL(qrData);
                         extractedSessionId = url.searchParams.get("sessionId");
-                        console.log("SessionId de URL absoluta:", extractedSessionId);
+                        console.log("✅ SessionId extraído de URL absoluta:", extractedSessionId);
                     } catch (urlError) {
-                        console.log("Error parseando URL:", urlError);
+                        console.log("❌ Error parseando URL:", urlError);
                     }
                 } 
                 // Si contiene sessionId directamente
                 if (!extractedSessionId && qrData.includes('sessionId=')) {
-                    console.log("Detectado como URL relativa o parámetro");
+                    console.log("🔗 Detectado como URL relativa o parámetro");
                     const parts = qrData.split('?');
                     if (parts.length > 1) {
                         const urlParams = new URLSearchParams(parts[1]);
                         extractedSessionId = urlParams.get("sessionId");
-                        console.log("SessionId de parámetros:", extractedSessionId);
+                        console.log("✅ SessionId extraído de parámetros:", extractedSessionId);
                     }
                 }
                 // Intenta extraer UUID directamente (si el QR solo contiene el UUID)
                 if (!extractedSessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrData)) {
-                    console.log("Detectado como UUID puro");
+                    console.log("🆔 Detectado como UUID puro");
                     extractedSessionId = qrData;
+                    console.log("✅ SessionId extraído como UUID:", extractedSessionId);
                 }
                 
                 sessionId = extractedSessionId;
-                console.log("Session ID final extraido:", sessionId);
+                console.log("📍 Session ID final:", sessionId);
 
                 if (sessionId) {
                     console.log("✅ SessionId válido, registrando asistencia...");
+                    console.log("========== PROCESAMIENTO COMPLETADO ==========\n");
                     registerAttendance();
                 } else {
-                    console.log("❌ SessionId no encontrado");
-                    setStatus(statusDiv, "QR no válido - sessionId no encontrado", "error");
+                    console.log("❌ SessionId no encontrado en el QR");
+                    setStatus(statusDiv, "❌ QR no válido - sessionId no encontrado", "error");
                     hasScanned = false;
                     scanning = true;
+                    document.getElementById("retryBtn").textContent = "Intentar de Nuevo";
+                    document.getElementById("retryBtn").onclick = () => {
+                        if (html5QrCodeInstance) {
+                            html5QrCodeInstance.resume();
+                        }
+                    };
+                    document.getElementById("retryBtn").style.display = "block";
                     // Reanudar escaneo después de 2 segundos
                     setTimeout(() => {
                         if (html5QrCodeInstance && !hasScanned) {
@@ -643,9 +674,16 @@
                 }
             } catch (error) {
                 console.error("❌ Error processing QR data:", error);
-                setStatus(statusDiv, "Error al procesar QR: " + error.message, "error");
+                setStatus(statusDiv, "❌ Error al procesar QR: " + error.message, "error");
                 hasScanned = false;
                 scanning = true;
+                document.getElementById("retryBtn").textContent = "Intentar de Nuevo";
+                document.getElementById("retryBtn").onclick = () => {
+                    if (html5QrCodeInstance) {
+                        html5QrCodeInstance.resume();
+                    }
+                };
+                document.getElementById("retryBtn").style.display = "block";
                 // Reanudar escaneo después de 2 segundos
                 setTimeout(() => {
                     if (html5QrCodeInstance && !hasScanned) {
@@ -660,9 +698,10 @@
             const statusDiv = document.getElementById("status");
             const studentInfoDiv = document.getElementById("studentInfo");
 
+            console.log("\n========== INICIANDO REGISTRO DE ASISTENCIA ==========");
             setStatus(statusDiv, "Registrando asistencia...", "loading");
-            console.log("Registrando asistencia para sesion:", sessionId);
-            console.log("Datos del estudiante en variables globales:", {
+            console.log("📍 SessionId:", sessionId);
+            console.log("👤 Datos del estudiante:", {
                 studentId,
                 studentName,
                 studentEmail,
@@ -670,13 +709,29 @@
             });
 
             // Validar que todos los datos estén presentes
-            if (!studentId || !studentName) {
-                const errorMsg = "Error: Datos del estudiante incompletos. Por favor vuelve al formulario.";
+            if (!sessionId) {
+                const errorMsg = "❌ Error: SessionId no disponible. El QR no es válido.";
                 console.error(errorMsg);
                 setStatus(statusDiv, errorMsg, "error");
                 hasScanned = false;
                 scanning = true;
                 document.getElementById("retryBtn").textContent = "Intentar de Nuevo";
+                document.getElementById("retryBtn").onclick = () => {
+                    if (html5QrCodeInstance) {
+                        html5QrCodeInstance.resume();
+                    }
+                };
+                document.getElementById("retryBtn").style.display = "block";
+                return;
+            }
+
+            if (!studentId || !studentName) {
+                const errorMsg = "❌ Error: Datos del estudiante incompletos. Por favor vuelve al formulario.";
+                console.error(errorMsg);
+                setStatus(statusDiv, errorMsg, "error");
+                hasScanned = false;
+                scanning = true;
+                document.getElementById("retryBtn").textContent = "Volver al Formulario";
                 document.getElementById("retryBtn").onclick = () => location.reload();
                 document.getElementById("retryBtn").style.display = "block";
                 return;
@@ -690,40 +745,63 @@
                     studentPhone: studentPhone || null,
                 };
                 
-                console.log("Datos a enviar al servidor:", attendanceData);
-                console.log("URL de endpoint:", `/api/sessions/${sessionId}/attendance`);
+                console.log("📤 Datos a enviar al servidor:", attendanceData);
+                const endpoint = `/api/sessions/${sessionId}/attendance`;
+                console.log("🔗 URL de endpoint:", endpoint);
                 
-                const response = await fetch(`/api/sessions/${sessionId}/attendance`, {
+                const response = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(attendanceData),
                 });
 
-                console.log("Respuesta del servidor:", response.status, response.statusText);
+                console.log("📨 Respuesta del servidor:", {
+                    status: response.status,
+                    statusText: response.statusText
+                });
+
                 const data = await response.json();
-                console.log("Datos de respuesta:", data);
+                console.log("📋 Datos de respuesta:", data);
 
                 if (!response.ok) {
-                    throw new Error(data.message || "Error al registrar asistencia");
+                    throw new Error(data.message || `Error HTTP ${response.status}: ${response.statusText}`);
                 }
 
-                setStatus(statusDiv, "Asistencia registrada exitosamente", "success");
+                // ✅ ÉXITO - Mostrar notificación
+                console.log("✅ ASISTENCIA REGISTRADA EXITOSAMENTE");
+                setStatus(statusDiv, "✅ ¡Asistencia registrada exitosamente!", "success");
 
+                // Mostrar información del estudiante
                 document.getElementById("studentNameDisplay").textContent = studentName;
                 document.getElementById("studentIdDisplay").textContent = studentId;
-                document.getElementById("sessionInfo").textContent = `Sesion: ${sessionId}`;
+                document.getElementById("sessionInfo").textContent = `Sesión: ${sessionId.substring(0, 8)}...`;
                 studentInfoDiv.classList.add("show");
 
-                console.log("Asistencia guardada correctamente en Firebase");
+                // Reproducir sonido de éxito (opcional)
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj==');
+                    audio.play().catch(e => console.log("No se pudo reproducir sonido:", e));
+                } catch (e) {
+                    console.log("Audio no disponible");
+                }
 
-                document.getElementById("retryBtn").textContent = "Volver";
+                console.log("========== REGISTRO COMPLETADO ==========\n");
+
+                document.getElementById("retryBtn").textContent = "Volver al Inicio";
                 document.getElementById("retryBtn").onclick = () => (window.location.href = "/");
                 document.getElementById("retryBtn").style.display = "block";
             } catch (error) {
-                console.error("Error registrando asistencia:", error);
-                setStatus(statusDiv, error.message, "error");
+                console.error("❌ Error registrando asistencia:", error);
+                console.error("Stack trace:", error.stack);
+                setStatus(statusDiv, "❌ " + error.message, "error");
                 hasScanned = false;
                 scanning = true;
+                document.getElementById("retryBtn").textContent = "Intentar de Nuevo";
+                document.getElementById("retryBtn").onclick = () => {
+                    if (html5QrCodeInstance) {
+                        html5QrCodeInstance.resume();
+                    }
+                };
                 document.getElementById("retryBtn").style.display = "block";
             }
         }
