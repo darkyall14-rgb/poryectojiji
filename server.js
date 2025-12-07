@@ -22,6 +22,17 @@ app.use("/", viewRoutes);
 const apiRoutes = require("./src/routes/apiRoutes");
 app.use("/api", apiRoutes);
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(`ERROR [${new Date().toISOString()}]:`, err);
+  res.status(500).json({ error: 'Internal Server Error', message: err.message });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en:`);
   console.log(`- Local: http://localhost:${PORT}`);
