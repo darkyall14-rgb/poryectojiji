@@ -1157,7 +1157,7 @@ body {
 /* Mejoras en las tarjetas de cursos */
 .course-card {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .course-card::before {
