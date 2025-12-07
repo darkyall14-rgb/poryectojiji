@@ -699,13 +699,12 @@ function renderCourses() {
             <div class="card-header">
                 <h3 class="card-title">${course.name}</h3>
                 <div class="card-actions">
-                    ${course.isDefault ? '<span class="default-badge">Predefinido</span>' : ''}
                     <button class="action-btn" onclick="editCourse('${course.id}')" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    ${!course.isDefault ? `<button class="action-btn" onclick="deleteCourse('${course.id}')" title="Eliminar">
+                    <button class="action-btn" onclick="deleteCourse('${course.id}')" title="Eliminar">
                         <i class="fas fa-trash"></i>
-                    </button>` : ''}
+                    </button>
                 </div>
             </div>
             <div class="card-content">
