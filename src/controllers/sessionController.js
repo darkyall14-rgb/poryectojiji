@@ -38,17 +38,25 @@ exports.createSession = async (req, res) => {
 
   try {
     console.log('[createSession] Guardando sesion en Firebase:', sessionId);
-    // Guardar en Firebase
-    await firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}`, session);
-    console.log(`[createSession] Session creada exitosamente: ${sessionId}`);
     
+    // Responder inmediatamente al cliente
     res.status(201).json({
       sessionId,
       qrUrl,
       message: "Session created successfully. Share this QR code with students.",
     });
+    
+    // Guardar en Firebase de forma asincrónica (sin bloquear la respuesta)
+    firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}`, session)
+      .then(() => {
+        console.log(`[createSession] Session guardada en Firebase: ${sessionId}`);
+      })
+      .catch((error) => {
+        console.error("[createSession] Error saving session to Firebase:", error.message);
+      });
+      
   } catch (error) {
-    console.error("[createSession] Error saving session to Firebase:", error.message);
+    console.error("[createSession] Error en createSession:", error.message);
     return res.status(500).json({
       message: "Error creating session: " + error.message,
     });
@@ -194,83 +202,80 @@ exports.markAttendance = async (req, res) => {
     // Agregar a la lista de asistentes (usar la variable local)
     const updatedAttendees = [...attendees, attendance];
 
-    // Guardar en Firebase
-    try {
-      // Actualizar la sesión en Firebase con el nuevo asistente
-      await firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}/attendees/${studentId}`, attendance);
-      // Actualizar el array completo de asistentes
-      await firebaseUtils.update(`${SESSIONS_PATH}/${sessionId}`, {
-        attendees: updatedAttendees
-      });
-
-      // También guardar en la tabla de asistencia global para que el dashboard pueda acceder
-      const globalAttendanceRecord = {
-        sessionId,
-        studentId,
-        studentName,
-        studentEmail: studentEmail || null,
-        studentPhone: studentPhone || null,
-        courseId: session.courseId,
-        courseName: session.courseName,
-        teacherId: session.teacherId,
-        markedAt: new Date().toISOString(),
-      };
-
-      // Guardar en path general de asistencia
-      await firebaseUtils.write(
-        `attendance/${new Date().getTime()}_${sessionId}_${studentId}`,
-        globalAttendanceRecord
-      );
-
-      // También guardar en el path específico del docente si es necesario
-      if (session.teacherId) {
-        await firebaseUtils.write(
-          `teachers/${session.teacherId}/attendance/${new Date().getTime()}_${studentId}`,
-          globalAttendanceRecord
-        );
-      }
-
-    } catch (error) {
-      console.error("Error saving attendance to Firebase:", error);
-      return res.status(500).json({
-        message: "Error saving attendance",
-      });
-    }
-
-    // Guardar/actualizar estudiante en la base de datos
-    try {
-      const existingStudent = await getStudentByStudentId(studentId);
-      if (existingStudent) {
-        // Actualizar estudiante existente usando su id interno
-        await updateStudent(existingStudent.id, {
-          name: studentName,
-          email: studentEmail || existingStudent.email,
-          phone: studentPhone || existingStudent.phone,
-        });
-        console.log(`✓ Student updated: ${studentId}`);
-      } else {
-        // Crear nuevo estudiante
-        await createStudent({
-          name: studentName,
-          email: studentEmail || '',
-          studentId: studentId,
-          phone: studentPhone || '',
-        });
-        console.log(`✓ New student created: ${studentId}`);
-      }
-    } catch (error) {
-      console.error("Error saving student:", error);
-      // No fallar la asistencia si hay error guardando el estudiante
-    }
-
-    console.log(
-      `✓ Attendance marked: ${studentName || studentId} in session ${sessionId}`
-    );
-
+    // Responder inmediatamente al cliente
     res.status(201).json({
       message: "Attendance marked successfully",
       attendance,
     });
+
+    // Guardar en Firebase de forma asincrónica (sin bloquear la respuesta)
+    (async () => {
+      try {
+        // Actualizar la sesión en Firebase con el nuevo asistente
+        await firebaseUtils.write(`${SESSIONS_PATH}/${sessionId}/attendees/${studentId}`, attendance);
+        // Actualizar el array completo de asistentes
+        await firebaseUtils.update(`${SESSIONS_PATH}/${sessionId}`, {
+          attendees: updatedAttendees
+        });
+
+        // También guardar en la tabla de asistencia global para que el dashboard pueda acceder
+        const globalAttendanceRecord = {
+          sessionId,
+          studentId,
+          studentName,
+          studentEmail: studentEmail || null,
+          studentPhone: studentPhone || null,
+          courseId: session.courseId,
+          courseName: session.courseName,
+          teacherId: session.teacherId,
+          markedAt: new Date().toISOString(),
+        };
+
+        // Guardar en path general de asistencia
+        await firebaseUtils.write(
+          `attendance/${new Date().getTime()}_${sessionId}_${studentId}`,
+          globalAttendanceRecord
+        );
+
+        // También guardar en el path específico del docente si es necesario
+        if (session.teacherId) {
+          await firebaseUtils.write(
+            `teachers/${session.teacherId}/attendance/${new Date().getTime()}_${studentId}`,
+            globalAttendanceRecord
+          );
+        }
+
+        // Guardar/actualizar estudiante en la base de datos
+        try {
+          const existingStudent = await getStudentByStudentId(studentId);
+          if (existingStudent) {
+            // Actualizar estudiante existente usando su id interno
+            await updateStudent(existingStudent.id, {
+              name: studentName,
+              email: studentEmail || existingStudent.email,
+              phone: studentPhone || existingStudent.phone,
+            });
+            console.log(`Student updated: ${studentId}`);
+          } else {
+            // Crear nuevo estudiante
+            await createStudent({
+              name: studentName,
+              email: studentEmail || '',
+              studentId: studentId,
+              phone: studentPhone || '',
+            });
+            console.log(`New student created: ${studentId}`);
+          }
+        } catch (error) {
+          console.error("Error saving student:", error);
+          // No fallar la asistencia si hay error guardando el estudiante
+        }
+
+        console.log(`Attendance marked: ${studentName || studentId} in session ${sessionId}`);
+      } catch (error) {
+        console.error("Error saving attendance to Firebase:", error);
+      }
+    })();
   } catch (error) {
     console.error("Error marking attendance:", error);
     res.status(500).json({
