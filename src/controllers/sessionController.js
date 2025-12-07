@@ -54,8 +54,6 @@ exports.createSession = async (req, res) => {
     });
   }
 };
-  });
-};
 
 /**
  * Obtener una sesión por ID
