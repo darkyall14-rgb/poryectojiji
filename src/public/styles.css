@@ -1217,7 +1217,7 @@ body {
 /* Mejoras en las tarjetas de estudiantes */
 .student-card {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .student-card::before {
