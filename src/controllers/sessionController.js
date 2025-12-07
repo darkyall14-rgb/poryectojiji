@@ -96,6 +96,22 @@ async function getSession(req, res) {
   }
 }
 
+// Function to list all active sessions
+async function listSessions(req, res) {
+  try {
+    const sessions = await firebaseUtils.readOnce("sessions");
+
+    if (!sessions) {
+      return res.status(404).json({ message: "No active sessions found" });
+    }
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    console.error("Error listing sessions:", error);
+    res.status(500).json({ message: "Error listing sessions" });
+  }
+}
+
 module.exports = {
   createStudent,
   getStudentByStudentId,
@@ -107,4 +123,5 @@ module.exports = {
   markAttendance,
   createSession,
   getSession,
+  listSessions,
 };
