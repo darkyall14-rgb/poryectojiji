@@ -79,6 +79,23 @@ async function createSession(req, res) {
   }
 }
 
+// Function to get session information
+async function getSession(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const sessionData = await firebaseUtils.readOnce(`sessions/${sessionId}`);
+
+    if (!sessionData) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    res.status(200).json(sessionData);
+  } catch (error) {
+    console.error("Error getting session:", error);
+    res.status(500).json({ message: "Error getting session" });
+  }
+}
+
 module.exports = {
   createStudent,
   getStudentByStudentId,
@@ -89,4 +106,5 @@ module.exports = {
   validateQRSession,
   markAttendance,
   createSession,
+  getSession,
 };
