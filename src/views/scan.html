@@ -425,76 +425,94 @@
             const ctx = canvas.getContext("2d");
             const statusDiv = document.getElementById("status");
 
+            console.log("Inicializando cámara...");
+            console.log("jsQR disponible:", typeof jsQR);
+
             navigator.mediaDevices
                 .getUserMedia({
                     video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 })
                 .then((stream) => {
+                    console.log("Stream de video obtenido");
                     video.srcObject = stream;
                     video.addEventListener("loadedmetadata", () => {
+                        console.log("Video metadata cargado, dimensiones:", video.videoWidth, "x", video.videoHeight);
                         canvas.width = video.videoWidth;
                         canvas.height = video.videoHeight;
-                        setStatus(statusDiv, "Buscando código QR...", "loading");
+                        setStatus(statusDiv, "Buscando codigo QR...", "loading");
                         scanning = true;
+                        console.log("Iniciando escaneo...");
                         scanQR();
                     });
                 })
                 .catch((err) => {
-                    console.error("Error de cámara:", err);
-                    setStatus(statusDiv, "❌ No se pudo acceder a la cámara", "error");
+                    console.error("Error de camara:", err);
+                    setStatus(statusDiv, "No se pudo acceder a la camara", "error");
                     document.getElementById("retryBtn").style.display = "block";
                 });
 
             // Función para escanear QR
             function scanQR() {
-                if (!scanning || !video.srcObject) return;
+                if (!scanning || !video.srcObject) {
+                    return;
+                }
 
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imgData.data, imgData.width, imgData.height);
+                    try {
+                        // Asegurar que el canvas tenga las dimensiones correctas
+                        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                        }
+                        
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imgData.data, imgData.width, imgData.height);
 
-                    if (code && !hasScanned) {
-                        hasScanned = true;
-                        scanning = false;
-                        // Extraer sessionId del QR
-                        const qrData = code.data;
-                        console.log("QR Data:", qrData);
+                        if (code && !hasScanned) {
+                            hasScanned = true;
+                            scanning = false;
+                            // Extraer sessionId del QR
+                            const qrData = code.data;
+                            console.log("QR detectado:", qrData);
 
-                        try {
-                            // Intentar parsear como URL completa
-                            let extractedSessionId = null;
-                            
-                            // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
-                            if (qrData.startsWith('http://') || qrData.startsWith('https://')) {
-                                const url = new URL(qrData);
-                                extractedSessionId = url.searchParams.get("sessionId");
-                            } 
-                            // Si es URL relativa (/scan?sessionId=xxx)
-                            else if (qrData.includes('sessionId=')) {
-                                const urlParams = new URLSearchParams(qrData.split('?')[1]);
-                                extractedSessionId = urlParams.get("sessionId");
-                            }
-                            
-                            sessionId = extractedSessionId;
-                            console.log("Extracted Session ID:", sessionId);
+                            try {
+                                // Intentar parsear como URL completa
+                                let extractedSessionId = null;
+                                
+                                // Si es una URL completa (http://localhost:5000/scan?sessionId=xxx)
+                                if (qrData.startsWith('http://') || qrData.startsWith('https://')) {
+                                    const url = new URL(qrData);
+                                    extractedSessionId = url.searchParams.get("sessionId");
+                                } 
+                                // Si es URL relativa (/scan?sessionId=xxx)
+                                else if (qrData.includes('sessionId=')) {
+                                    const urlParams = new URLSearchParams(qrData.split('?')[1]);
+                                    extractedSessionId = urlParams.get("sessionId");
+                                }
+                                
+                                sessionId = extractedSessionId;
+                                console.log("Session ID extraido:", sessionId);
 
-                            if (sessionId) {
-                                registerAttendance();
-                            } else {
-                                setStatus(statusDiv, "❌ QR no válido - sessionId no encontrado", "error");
+                                if (sessionId) {
+                                    registerAttendance();
+                                } else {
+                                    setStatus(statusDiv, "QR no valido - sessionId no encontrado", "error");
+                                    hasScanned = false;
+                                    scanning = true;
+                                    setTimeout(() => scanQR(), 500);
+                                }
+                            } catch (error) {
+                                console.error("Error parsing QR data:", error);
+                                setStatus(statusDiv, "Error al procesar QR: " + error.message, "error");
                                 hasScanned = false;
                                 scanning = true;
-                                scanQR();
+                                setTimeout(() => scanQR(), 500);
                             }
-                        } catch (error) {
-                            console.error("Error parsing QR data:", error);
-                            setStatus(statusDiv, "❌ Error al procesar QR: " + error.message, "error");
-                            hasScanned = false;
-                            scanning = true;
-                            scanQR();
+                            return;
                         }
-                        return;
+                    } catch (error) {
+                        console.error("Error en scanQR:", error);
                     }
                 }
                 requestAnimationFrame(scanQR);
@@ -506,31 +524,38 @@
             const statusDiv = document.getElementById("status");
             const studentInfoDiv = document.getElementById("studentInfo");
 
-            setStatus(statusDiv, "📤 Registrando asistencia...", "loading");
+            setStatus(statusDiv, "Registrando asistencia...", "loading");
+            console.log("Registrando asistencia para sesion:", sessionId);
 
             try {
+                const attendanceData = {
+                    studentId: studentId,
+                    studentName: studentName,
+                    studentEmail: localStorage.getItem("studentEmail") || null,
+                    studentPhone: localStorage.getItem("studentPhone") || null,
+                };
+                
+                console.log("Datos a enviar:", attendanceData);
+                
                 const response = await fetch(`/api/sessions/${sessionId}/attendance`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        studentId: studentId,
-                        studentName: studentName,
-                        studentEmail: localStorage.getItem("studentEmail") || null,
-                        studentPhone: localStorage.getItem("studentPhone") || null,
-                    }),
+                    body: JSON.stringify(attendanceData),
                 });
 
+                console.log("Respuesta del servidor:", response.status, response.statusText);
                 const data = await response.json();
+                console.log("Datos de respuesta:", data);
 
                 if (!response.ok) {
                     throw new Error(data.message || "Error al registrar asistencia");
                 }
 
-                setStatus(statusDiv, "✅ Asistencia registrada exitosamente", "success");
+                setStatus(statusDiv, "Asistencia registrada exitosamente", "success");
 
                 document.getElementById("studentNameDisplay").textContent = studentName;
                 document.getElementById("studentIdDisplay").textContent = studentId;
-                document.getElementById("sessionInfo").textContent = `Sesión: ${sessionId}`;
+                document.getElementById("sessionInfo").textContent = `Sesion: ${sessionId}`;
                 studentInfoDiv.classList.add("show");
 
                 document.getElementById("retryBtn").textContent = "Volver";
@@ -538,7 +563,7 @@
                 document.getElementById("retryBtn").style.display = "block";
             } catch (error) {
                 console.error("Error:", error);
-                setStatus(statusDiv, `❌ ${error.message}`, "error");
+                setStatus(statusDiv, error.message, "error");
                 hasScanned = false;
                 scanning = true;
                 document.getElementById("retryBtn").style.display = "block";
