@@ -15,12 +15,12 @@ async function createCourse({ name, code, teacher, description, schedule, instru
   const course = { 
     id, 
     name, 
-    code, 
-    teacher, 
-    description, 
-    schedule, 
-    instructor, 
-    room, 
+    code: code || '', 
+    teacher: teacher || '', 
+    description: description || '', 
+    schedule: schedule || '', 
+    instructor: instructor || '', 
+    room: room || '', 
     isDefault: isDefault || false,
     createdAt: new Date().toISOString()
   };

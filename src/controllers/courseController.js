@@ -1,17 +1,17 @@
 const Course = require('../models/Course');
 
-exports.list = (req, res) => {
+exports.list = async (req, res) => {
     try {
-        const courses = Course.listCourses();
+        const courses = await Course.listCourses();
         res.json(courses);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-exports.get = (req, res) => {
+exports.get = async (req, res) => {
     try {
-        const course = Course.getCourseById(req.params.id);
+        const course = await Course.getCourseById(req.params.id);
         if (!course) {
             return res.status(404).json({ message: 'Course not found' });
         }
@@ -21,18 +21,18 @@ exports.get = (req, res) => {
     }
 };
 
-exports.create = (req, res) => {
+exports.create = async (req, res) => {
     try {
-        const course = Course.createCourse(req.body);
+        const course = await Course.createCourse(req.body);
         res.status(201).json(course);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 };
 
-exports.update = (req, res) => {
+exports.update = async (req, res) => {
     try {
-        const course = Course.updateCourse(req.params.id, req.body);
+        const course = await Course.updateCourse(req.params.id, req.body);
         if (!course) {
             return res.status(404).json({ message: 'Course not found' });
         }
@@ -42,9 +42,9 @@ exports.update = (req, res) => {
     }
 };
 
-exports.remove = (req, res) => {
+exports.remove = async (req, res) => {
     try {
-        const deleted = Course.deleteCourse(req.params.id);
+        const deleted = await Course.deleteCourse(req.params.id);
         if (!deleted) {
             return res.status(404).json({ message: 'Course not found' });
         }

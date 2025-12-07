@@ -15,9 +15,9 @@ async function createStudent({ name, email, studentId, phone }) {
   const student = { 
     id, 
     name, 
-    email, 
-    studentId, 
-    phone,
+    email: email || '', 
+    studentId: studentId || '', 
+    phone: phone || '',
     createdAt: new Date().toISOString()
   };
   

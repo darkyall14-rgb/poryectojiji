@@ -14,11 +14,11 @@ async function createAttendance({ studentId, courseId, timestamp = Date.now(), s
   const id = generateId();
   const attendance = { 
     id, 
-    studentId, 
+    studentId: studentId || '', 
     courseId, 
     timestamp: timestamp || new Date().toISOString(), 
-    studentName, 
-    studentDni,
+    studentName: studentName || '', 
+    studentDni: studentDni || '',
     recordedAt: new Date().toISOString()
   };
   
