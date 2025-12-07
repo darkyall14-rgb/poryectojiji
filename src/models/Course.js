@@ -8,7 +8,7 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-async function createCourse({ name, code, teacher, description, schedule, instructor, room, isDefault }) {
+async function createCourse({ name, code, teacher, description, schedule, instructor, room, isDefault, carrera, ciclo }) {
   if (!name) throw new Error("Course name is required");
   
   const id = generateId();
@@ -22,6 +22,8 @@ async function createCourse({ name, code, teacher, description, schedule, instru
     instructor: instructor || '', 
     room: room || '', 
     isDefault: isDefault || false,
+    carrera: carrera || '', 
+    ciclo: ciclo || '',
     createdAt: new Date().toISOString()
   };
   

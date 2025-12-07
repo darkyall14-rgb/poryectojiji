@@ -29,9 +29,9 @@ exports.get = async (req, res) => {
 
 exports.create = async (req, res) => {
   try {
-    const { name, email, studentId, phone } = req.body || {};
+    const { name, email, studentId, phone, carrera, ciclo, curso } = req.body || {};
     if (!name) return res.status(400).json({ message: "name is required" });
-    const student = await createStudent({ name, email, studentId, phone });
+    const student = await createStudent({ name, email, studentId, phone, carrera, ciclo, curso });
     res.status(201).json(student);
   } catch (error) {
     console.error("Error creating student:", error);

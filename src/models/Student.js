@@ -8,7 +8,8 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-async function createStudent({ name, email, studentId, phone }) {
+// Added fields carrera, ciclo, and curso to the Student model
+async function createStudent({ name, email, studentId, phone, carrera, ciclo, curso }) {
   if (!name) throw new Error("Student name is required");
   
   const id = generateId();
@@ -18,6 +19,9 @@ async function createStudent({ name, email, studentId, phone }) {
     email: email || '', 
     studentId: studentId || '', 
     phone: phone || '',
+    carrera: carrera || '', 
+    ciclo: ciclo || '', 
+    curso: curso || '',
     createdAt: new Date().toISOString()
   };
   
@@ -70,6 +74,7 @@ async function listStudents() {
   }
 }
 
+// Updated updateStudent to handle new fields
 async function updateStudent(id, updates) {
   try {
     const existing = await getStudentById(id);

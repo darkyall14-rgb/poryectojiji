@@ -110,22 +110,62 @@ function getAttendance(sessionId) {
     });
 }
 
+// Function to test enrollment
+async function testEnrollment() {
+    console.log('🔄 Probando inscripción de estudiante...');
+
+    const enrollmentData = JSON.stringify({
+        studentId: 'TEST-12345',
+        courseId: 'TEST-001',
+    });
+
+    const options = {
+        hostname: 'localhost',
+        port: 3000,
+        path: '/api/enrollments',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': enrollmentData.length,
+        },
+    };
+
+    return new Promise((resolve, reject) => {
+        const req = require('http').request(options, (res) => {
+            let body = '';
+            res.on('data', (chunk) => (body += chunk));
+            res.on('end', () => {
+                const response = JSON.parse(body);
+                console.log('\n✅ Respuesta de inscripción:', response);
+                resolve(response);
+            });
+        });
+
+        req.on('error', reject);
+        req.write(enrollmentData);
+        req.end();
+    });
+}
+
 // Ejecutar pruebas
 async function runTests() {
-    console.log('🔄 Iniciando pruebas de asistencia...\n');
-    
+    console.log('🔄 Iniciando pruebas de inscripción y asistencia...\n');
+
     try {
-        console.log('1. Creando sesión...');
+        console.log('1. Probando inscripción...');
+        await testEnrollment();
+
+        console.log('\n2. Creando sesión...');
         const sessionId = await createSession();
-        
-        console.log('\n2. Registrando asistencia...');
+
+        console.log('\n3. Registrando asistencia...');
         await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar a que se guarde
         await registerAttendance(sessionId);
-        
-        console.log('\n3. Verificando asistencia guardada...');
+
+        console.log('\n4. Verificando asistencia guardada...');
         await new Promise(resolve => setTimeout(resolve, 1500)); // Esperar a que se propague
         await getAttendance(sessionId);
-        
+
         console.log('\n✅ Prueba completada');
         process.exit(0);
     } catch (error) {

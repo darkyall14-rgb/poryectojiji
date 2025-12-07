@@ -5,6 +5,7 @@ const studentController = require("../controllers/studentController");
 const courseController = require("../controllers/courseController");
 const attendanceController = require("../controllers/attendanceController");
 const sessionController = require("../controllers/sessionController");
+const enrollmentController = require("../controllers/enrollmentController");
 
 // ============ HEALTH CHECK ============
 router.get("/health", (req, res) => {
@@ -64,6 +65,9 @@ router.get("/config/firebase", (req, res) => {
     appId: process.env.FIREBASE_APP_ID || ""
   });
 });
+
+// ============ ENROLLMENTS ============
+router.post("/enrollments", enrollmentController.createEnrollment);
 
 module.exports = router;
 
