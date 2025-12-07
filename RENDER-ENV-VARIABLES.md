@@ -34,6 +34,23 @@ npm run prepare-env
 
 ---
 
+### 2a. URL Externa de Render (IMPORTANTE para QR)
+
+**Nombre de la variable:**
+```
+RENDER_EXTERNAL_URL
+```
+
+**Valor:**
+```
+https://poryectojiji.onrender.com
+```
+
+**¿Por qué es importante?**
+Sin esta variable, el QR generado contendrá `localhost` en lugar de la URL pública, y no funcionará en teléfonos reales.
+
+---
+
 ### 2. Firebase Database URL
 
 **Nombre de la variable:**

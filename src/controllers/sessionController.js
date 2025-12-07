@@ -5,6 +5,25 @@ const { firebaseUtils } = require("../config/firebase");
 // Path en Firebase para sesiones
 const SESSIONS_PATH = "sessions";
 
+// Función para construir la URL base correctamente en Render
+function getBaseUrl(req) {
+  // En Render, usar la variable de entorno RENDER_EXTERNAL_URL si está disponible
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL;
+  }
+  
+  // En desarrollo local, construir desde req
+  const protocol = req.protocol || 'http';
+  const host = req.get('host') || 'localhost:5000';
+  
+  // Filtrar localhost y direcciones locales si no estamos en desarrollo
+  if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168')) {
+    return `${protocol}://${host}`;
+  }
+  
+  return `${protocol}://${host}`;
+}
+
 /**
  * Crear una nueva sesión QR para que los estudiantes escaneen
  * POST /api/sessions
@@ -22,7 +41,8 @@ exports.createSession = async (req, res) => {
   }
 
   const sessionId = require('uuid').v4();
-  const qrUrl = `${req.protocol}://${req.get('host')}/scan?sessionId=${sessionId}`;
+  const baseUrl = getBaseUrl(req);
+  const qrUrl = `${baseUrl}/scan?sessionId=${sessionId}`;
 
   const session = {
     sessionId,
@@ -38,6 +58,7 @@ exports.createSession = async (req, res) => {
 
   try {
     console.log('[createSession] Guardando sesion en Firebase:', sessionId);
+    console.log('[createSession] QR URL:', qrUrl);
     
     // Responder inmediatamente al cliente
     res.status(201).json({
