@@ -41,7 +41,7 @@ router.post("/sessions", sessionController.createSession);
 // Obtener información de una sesión
 router.get("/sessions/:sessionId", sessionController.getSession);
 
-// Listar todas las sesiones activas
+// Obtener todas las sesiones
 router.get("/sessions", sessionController.listSessions);
 
 // Cerrar una sesión (dejar de aceptar asistencias)

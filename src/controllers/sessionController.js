@@ -96,13 +96,13 @@ async function getSession(req, res) {
   }
 }
 
-// Function to list all active sessions
+// Function to list all sessions
 async function listSessions(req, res) {
   try {
     const sessions = await firebaseUtils.readOnce("sessions");
 
     if (!sessions) {
-      return res.status(404).json({ message: "No active sessions found" });
+      return res.status(404).json({ message: "No sessions found" });
     }
 
     res.status(200).json(sessions);
