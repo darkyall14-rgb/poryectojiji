@@ -276,36 +276,41 @@ async function loadStudents() {
 // Cargar cursos
 async function loadCourses() {
     try {
-        // Source of truth: Firebase (scoped by teacher)
-        const snapshot = await database.ref('teachers/' + currentUser.uid + '/courses').once('value');
-        courses = [];
-        if (snapshot.exists()) {
-            const coursesData = snapshot.val();
-            Object.keys(coursesData).forEach(key => {
-                courses.push({ id: key, ...coursesData[key] });
+        // Cargar desde la API (fuente de verdad)
+        const apiCourses = await apiFetch('/api/courses');
+        
+        // Asegurar que sea un array
+        if (Array.isArray(apiCourses)) {
+            // Remover duplicados basado en ID
+            const uniqueCourses = {};
+            apiCourses.forEach(course => {
+                if (!uniqueCourses[course.id]) {
+                    uniqueCourses[course.id] = course;
+                }
             });
-            renderCourses();
-            updateCourseSelect();
-            return;
-        }
-        // If empty in Firebase, fallback to API
-        try {
-            const apiCourses = await apiFetch('/api/courses');
-            courses = Array.isArray(apiCourses) ? apiCourses : [];
-        } catch (_) {
+            courses = Object.values(uniqueCourses);
+        } else {
             courses = [];
         }
+        
         renderCourses();
         updateCourseSelect();
-    } catch (fbError) {
-        console.error('Error loading courses:', fbError);
+    } catch (error) {
+        console.error('Error loading courses from API:', error);
+        // Fallback a Firebase si API falla
         try {
-            const apiCourses = await apiFetch('/api/courses');
-            courses = Array.isArray(apiCourses) ? apiCourses : [];
+            const snapshot = await database.ref('teachers/' + currentUser.uid + '/courses').once('value');
+            courses = [];
+            if (snapshot.exists()) {
+                const coursesData = snapshot.val();
+                Object.keys(coursesData).forEach(key => {
+                    courses.push({ id: key, ...coursesData[key] });
+                });
+            }
             renderCourses();
             updateCourseSelect();
-        } catch (apiErr) {
-            console.error('Error loading courses from API:', apiErr);
+        } catch (fbError) {
+            console.error('Error loading courses from Firebase:', fbError);
             courses = [];
             renderCourses();
             updateCourseSelect();
@@ -616,26 +621,22 @@ async function handleAddCourse(e) {
     const code = document.getElementById('courseCode').value;
     const description = document.getElementById('courseDescription').value;
     const schedule = document.getElementById('courseSchedule').value;
+    const instructor = document.getElementById('courseInstructor')?.value || '';
+    const room = document.getElementById('courseRoom')?.value || '';
     
     try {
-        try {
-            await apiFetch('/api/courses', { method: 'POST', body: JSON.stringify({ name, code, description, schedule }) });
-        } catch (_) {
-            const newCourseRef = database.ref('teachers/' + currentUser.uid + '/courses').push();
-            await newCourseRef.set({
-                name: name,
-                code: code,
-                description: description,
-                schedule: schedule,
-                createdAt: firebase.database.ServerValue.TIMESTAMP
-            });
-        }
+        // Guardar en API (fuente de verdad)
+        await apiFetch('/api/courses', { 
+            method: 'POST', 
+            body: JSON.stringify({ name, code, description, schedule, instructor, room }) 
+        });
         
         closeModal('addCourseModal');
         document.getElementById('addCourseForm').reset();
         loadCourses();
         showNotification('Unidad didáctica creada exitosamente', 'success');
     } catch (error) {
+        console.error('Error creating course:', error);
         showNotification('Error al crear unidad didáctica: ' + error.message, 'error');
     }
 }
@@ -1052,28 +1053,13 @@ function editCourse(courseId) {
 async function deleteCourse(courseId) {
     if (confirm('¿Estás seguro de que quieres eliminar esta unidad didáctica?')) {
         try {
-            // Delete from Firebase first (real data source)
-            const coursesRef = database.ref('teachers/' + currentUser.uid + '/courses');
-            try {
-                await coursesRef.child(courseId).remove();
-            } catch (e) {
-                console.warn('Direct course key removal failed, will try lookup by course id field', e);
-            }
-
-            const localCourse = courses.find(c => c.id === courseId || c.courseId === courseId);
-            if (localCourse && localCourse.courseId) {
-                const snap = await coursesRef.orderByChild('courseId').equalTo(localCourse.courseId).once('value');
-                if (snap.exists()) {
-                    const val = snap.val();
-                    for (const key in val) {
-                        await coursesRef.child(key).remove();
-                    }
-                }
-            }
-
+            // Eliminar a través de la API
+            await apiFetch(`/api/courses/${courseId}`, { method: 'DELETE' });
+            
             loadCourses();
             showNotification('Unidad didáctica eliminada exitosamente', 'success');
         } catch (error) {
+            console.error('Error al eliminar curso:', error);
             showNotification('Error al eliminar unidad didáctica: ' + error.message, 'error');
         }
     }
