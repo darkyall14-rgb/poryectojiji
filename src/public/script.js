@@ -613,16 +613,18 @@ async function handleAddCourse(e) {
     e.preventDefault();
     
     const name = document.getElementById('courseName').value;
+    const code = document.getElementById('courseCode').value;
     const description = document.getElementById('courseDescription').value;
     const schedule = document.getElementById('courseSchedule').value;
     
     try {
         try {
-            await apiFetch('/api/courses', { method: 'POST', body: JSON.stringify({ name, description, schedule }) });
+            await apiFetch('/api/courses', { method: 'POST', body: JSON.stringify({ name, code, description, schedule }) });
         } catch (_) {
             const newCourseRef = database.ref('teachers/' + currentUser.uid + '/courses').push();
             await newCourseRef.set({
                 name: name,
+                code: code,
                 description: description,
                 schedule: schedule,
                 createdAt: firebase.database.ServerValue.TIMESTAMP
@@ -706,6 +708,10 @@ function renderCourses() {
                 </div>
             </div>
             <div class="card-content">
+                <div class="card-item">
+                    <i class="fas fa-barcode"></i>
+                    <span>Código: ${course.code || 'Sin código'}</span>
+                </div>
                 <div class="card-item">
                     <i class="${courseIcon}"></i>
                     <span>${course.description || 'Sin descripción'}</span>
