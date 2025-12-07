@@ -38,18 +38,12 @@ let sessionListener = null;
 // ========== FUNCIONES PARA REGISTRAR DATOS DEL ESTUDIANTE ==========
 
 /**
- * Guardar datos del estudiante en localStorage y Firebase (opcional)
+ * Guardar datos del estudiante en Firebase Realtime Database
  */
 function saveStudentData(studentData) {
     const { studentId, name, dni, phone } = studentData;
 
-    // Guardar en localStorage
-    localStorage.setItem('studentId', studentId);
-    localStorage.setItem('studentName', name);
-    localStorage.setItem('studentDni', dni || '');
-    localStorage.setItem('studentPhone', phone || '');
-
-    // Opcionalmente, también guardar en Firebase
+    // Guardar en Firebase Realtime Database
     if (studentId) {
         const studentPath = `students/${studentId}`;
         database.ref(studentPath).set({
@@ -63,7 +57,7 @@ function saveStudentData(studentData) {
         });
     }
 
-    console.log('✅ Datos del estudiante guardados');
+    console.log('✅ Datos del estudiante guardados en Firebase Realtime Database');
 }
 
 // ========== FUNCIONES PARA ESCUCHAR SESIONES EN TIEMPO REAL ==========

@@ -537,26 +537,61 @@
             }
         }
 
-        // Cargar datos del localStorage si existen
-        function loadTeacherData() {
-            // Obtener ID del usuario desde localStorage o generar uno
-            let teacherId = localStorage.getItem("teacherId");
-            if (!teacherId) {
-                // Si no existe, generar uno basado en el email o timestamp
-                teacherId = "PROF-" + Date.now();
-                localStorage.setItem("teacherId", teacherId);
+        // Cargar datos del docente desde Firebase Realtime Database
+        async function loadTeacherData() {
+            const teacherIdInput = document.getElementById("teacherId");
+            const teacherNameInput = document.getElementById("teacherName");
+            
+            try {
+                // Obtener ID del usuario desde auth o generar uno
+                if (auth && auth.currentUser) {
+                    const teacherId = auth.currentUser.uid;
+                    const ref = database.ref(`teachers/${teacherId}`);
+                    const snapshot = await ref.once('value');
+                    
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        teacherIdInput.value = teacherId;
+                        teacherNameInput.value = data.name || teacherId;
+                    } else {
+                        teacherIdInput.value = teacherId;
+                        teacherNameInput.value = teacherId;
+                    }
+                } else {
+                    // Si no está autenticado, generar ID temporal
+                    const tempId = "PROF-" + Date.now();
+                    teacherIdInput.value = tempId;
+                    teacherNameInput.value = tempId;
+                }
+            } catch (error) {
+                console.error('Error cargando datos del docente:', error);
+                // Fallback
+                const tempId = "PROF-" + Date.now();
+                teacherIdInput.value = tempId;
+                teacherNameInput.value = tempId;
             }
-            
-            let teacherName = localStorage.getItem("teacherName") || teacherId;
-            
-            document.getElementById("teacherId").value = teacherId;
-            document.getElementById("teacherName").value = teacherName;
         }
 
-        // Guardar datos del docente
-        function saveTeacherData() {
-            localStorage.setItem("teacherId", document.getElementById("teacherId").value);
-            localStorage.setItem("teacherName", document.getElementById("teacherName").value);
+        // Guardar datos del docente en Firebase Realtime Database
+        async function saveTeacherData() {
+            const teacherId = document.getElementById("teacherId").value;
+            const teacherName = document.getElementById("teacherName").value;
+            
+            try {
+                if (auth && auth.currentUser) {
+                    const ref = database.ref(`teachers/${teacherId}`);
+                    await ref.set({
+                        uid: teacherId,
+                        name: teacherName,
+                        lastUpdated: new Date().toISOString()
+                    });
+                    console.log('✅ Datos del docente guardados en Firebase');
+                } else {
+                    console.warn('⚠️ Usuario no autenticado');
+                }
+            } catch (error) {
+                console.error('Error guardando datos del docente:', error);
+            }
         }
 
         // Mostrar estado
