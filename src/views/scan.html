@@ -385,30 +385,106 @@
         let sessionId = null;
         let studentId = null;
         let studentName = null;
+        let studentEmail = null;
+        let studentPhone = null;
         let scanning = false;
         let hasScanned = false;
+        let db = null;
 
-        // Guardar datos del estudiante
-        function saveStudentDataAndStartScanning() {
+        // Inicializar Firebase
+        async function initializeFirebase() {
+            try {
+                const response = await fetch('/firebase-config.js');
+                const firebaseConfig = await response.json();
+                
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                console.log("Firebase inicializado correctamente");
+            } catch (error) {
+                console.error("Error al inicializar Firebase:", error);
+            }
+        }
+
+        // Cargar datos del estudiante desde Firebase
+        async function loadStudentDataFromFirebase() {
+            try {
+                const user = firebase.auth().currentUser;
+                
+                if (!user) {
+                    console.log("No hay usuario autenticado, esperando datos del formulario");
+                    return false;
+                }
+
+                console.log("Cargando datos de Firebase para usuario:", user.uid);
+                
+                // Obtener datos del estudiante desde /students/{studentId}
+                const ref = db.ref(`students/${user.uid}`);
+                const snapshot = await ref.once('value');
+                const studentData = snapshot.val();
+
+                if (studentData) {
+                    studentId = studentData.id || user.uid;
+                    studentName = studentData.name;
+                    studentEmail = studentData.email || user.email;
+                    studentPhone = studentData.phone;
+
+                    console.log("Datos cargados de Firebase:", {
+                        studentId,
+                        studentName,
+                        studentEmail,
+                        studentPhone
+                    });
+
+                    // Llenar el formulario con datos de Firebase
+                    document.getElementById("studentName").value = studentName || '';
+                    document.getElementById("studentId").value = studentId || '';
+                    document.getElementById("studentEmail").value = studentEmail || '';
+                    document.getElementById("studentPhone").value = studentPhone || '';
+
+                    return true;
+                }
+                
+                console.log("No se encontraron datos del estudiante en Firebase");
+                return false;
+            } catch (error) {
+                console.error("Error cargando datos de Firebase:", error);
+                return false;
+            }
+        }
+
+        // Validar y guardar datos del estudiante
+        async function saveStudentDataAndStartScanning() {
             const name = document.getElementById("studentName").value.trim();
             const id = document.getElementById("studentId").value.trim();
             const email = document.getElementById("studentEmail").value.trim();
             const phone = document.getElementById("studentPhone").value.trim();
 
             if (!name || !id || !email || !phone) {
-                setStatus(document.getElementById("dataStatus"), "⚠️ Por favor completa todos los campos requeridos", "error");
+                setStatus(document.getElementById("dataStatus"), "Por favor completa todos los campos requeridos", "error");
                 return;
             }
-
-            // Guardar en localStorage
-            localStorage.setItem("studentId", id);
-            localStorage.setItem("studentName", name);
-            if (email) localStorage.setItem("studentEmail", email);
-            if (phone) localStorage.setItem("studentPhone", phone);
 
             // Guardar en variables globales
             studentId = id;
             studentName = name;
+            studentEmail = email;
+            studentPhone = phone;
+
+            try {
+                // Si hay usuario autenticado, guardar en Firebase
+                const user = firebase.auth().currentUser;
+                if (user) {
+                    await db.ref(`students/${user.uid}`).update({
+                        id: id,
+                        name: name,
+                        email: email,
+                        phone: phone
+                    });
+                    console.log("Datos guardados en Firebase");
+                }
+            } catch (error) {
+                console.error("Error guardando datos en Firebase:", error);
+            }
 
             // Mostrar sección de escaneo
             document.getElementById("studentDataSection").style.display = "none";
@@ -531,8 +607,8 @@
                 const attendanceData = {
                     studentId: studentId,
                     studentName: studentName,
-                    studentEmail: localStorage.getItem("studentEmail") || null,
-                    studentPhone: localStorage.getItem("studentPhone") || null,
+                    studentEmail: studentEmail,
+                    studentPhone: studentPhone,
                 };
                 
                 console.log("Datos a enviar:", attendanceData);
@@ -580,21 +656,12 @@
             }
         }
 
-        // Cargar datos guardados si existen
-        function loadSavedData() {
-            const savedName = localStorage.getItem("studentName");
-            const savedId = localStorage.getItem("studentId");
-            const savedEmail = localStorage.getItem("studentEmail");
-            const savedPhone = localStorage.getItem("studentPhone");
-
-            if (savedName) document.getElementById("studentName").value = savedName;
-            if (savedId) document.getElementById("studentId").value = savedId;
-            if (savedEmail) document.getElementById("studentEmail").value = savedEmail;
-            if (savedPhone) document.getElementById("studentPhone").value = savedPhone;
-        }
-
         // Cargar datos al iniciar
-        loadSavedData();
+        async function onPageLoad() {
+            console.log("Página cargada, inicializando...");
+            await initializeFirebase();
+            await loadStudentDataFromFirebase();
+        }
 
         // Limpiar cámara al descargar
         window.addEventListener("unload", () => {
@@ -604,6 +671,9 @@
                 video.srcObject.getTracks().forEach((track) => track.stop());
             }
         });
+
+        // Ejecutar al cargar la página
+        document.addEventListener('DOMContentLoaded', onPageLoad);
     </script>      
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
