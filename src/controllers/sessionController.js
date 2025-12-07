@@ -62,6 +62,23 @@ async function markAttendance(studentId, courseId) {
   }
 }
 
+// Function to create a session
+async function createSession(req, res) {
+  try {
+    const sessionId = uuidv4();
+    const sessionData = {
+      id: sessionId,
+      createdAt: new Date().toISOString(),
+    };
+
+    await firebaseUtils.write(`sessions/${sessionId}`, sessionData);
+    res.status(201).json({ message: "Session created successfully", session: sessionData });
+  } catch (error) {
+    console.error("Error creating session:", error);
+    res.status(500).json({ message: "Error creating session" });
+  }
+}
+
 module.exports = {
   createStudent,
   getStudentByStudentId,
@@ -71,4 +88,5 @@ module.exports = {
   enrollStudentInCourse,
   validateQRSession,
   markAttendance,
+  createSession,
 };
