@@ -10,9 +10,82 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <!-- QR Libraries - Using more reliable alternatives -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- QR Libraries - Load with multiple fallbacks -->
+    <script>
+        // Load jsQR with fallbacks
+        (function() {
+            const jsQRSources = [
+                'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+                'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
+            ];
+            
+            function loadScript(src, onSuccess, onError, index = 0) {
+                if (index >= jsQRSources.length) {
+                    onError();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = onSuccess;
+                script.onerror = () => {
+                    if (index < jsQRSources.length - 1) {
+                        loadScript(jsQRSources[index + 1], onSuccess, onError, index + 1);
+                    } else {
+                        onError();
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            // Load jsQR
+            if (typeof jsQR === 'undefined') {
+                loadScript(
+                    jsQRSources[0],
+                    () => console.log('jsQR cargado'),
+                    () => console.warn('jsQR no pudo cargarse')
+                );
+            }
+        })();
+        
+        // Load QRCode with fallbacks
+        (function() {
+            const qrCodeSources = [
+                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'
+            ];
+            
+            function loadScript(src, onSuccess, onError, index = 0) {
+                if (index >= qrCodeSources.length) {
+                    onError();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = onSuccess;
+                script.onerror = () => {
+                    if (index < qrCodeSources.length - 1) {
+                        loadScript(qrCodeSources[index + 1], onSuccess, onError, index + 1);
+                    } else {
+                        onError();
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            // Load QRCode
+            if (typeof QRCode === 'undefined') {
+                loadScript(
+                    qrCodeSources[0],
+                    () => console.log('QRCode cargado'),
+                    () => console.warn('QRCode no pudo cargarse - la generación de QR no estará disponible')
+                );
+            }
+        })();
+    </script>
     <style>
         :root {
             --primary: #4361ee;
@@ -2104,10 +2177,44 @@
             });
 
             async function startScanner() {
-                // Check if jsQR is available
+                // Try to load jsQR if not available
                 if (typeof jsQR === 'undefined') {
-                    showNotification('La librería de escáner QR no está disponible. Usa la opción manual.', 'error');
-                    return;
+                    showNotification('Cargando librería de escáner...', 'info');
+                    
+                    const sources = [
+                        'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+                        'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
+                    ];
+                    
+                    let loaded = false;
+                    for (const src of sources) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const script = document.createElement('script');
+                                script.src = src;
+                                script.onload = () => {
+                                    if (typeof jsQR !== 'undefined') {
+                                        loaded = true;
+                                        resolve();
+                                    } else {
+                                        reject();
+                                    }
+                                };
+                                script.onerror = reject;
+                                document.head.appendChild(script);
+                                setTimeout(() => reject(), 5000);
+                            });
+                            if (loaded) break;
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                    
+                    if (!loaded || typeof jsQR === 'undefined') {
+                        showNotification('No se pudo cargar el escáner QR. Usa la opción manual para registrar asistencia.', 'error');
+                        return;
+                    }
                 }
 
                 try {
@@ -2358,7 +2465,7 @@
         }
 
         // Generate Class QR
-        function generateClassQR() {
+        async function generateClassQR() {
             const qrContainer = document.getElementById('class-qr-code');
             if (!qrContainer) return;
 
@@ -2369,10 +2476,51 @@
                 teacherId: currentUser ? currentUser.uid : 'demo'
             };
 
-            // Check if QRCode is available
+            // Try to load QRCode if not available
             if (typeof QRCode === 'undefined') {
-                showNotification('La librería QR no está disponible. Por favor, recarga la página.', 'error');
-                return;
+                showNotification('Cargando librería QR...', 'info');
+                
+                // Try to load from multiple sources
+                const sources = [
+                    'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+                    'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'
+                ];
+                
+                let loaded = false;
+                for (const src of sources) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = src;
+                            script.onload = () => {
+                                if (typeof QRCode !== 'undefined') {
+                                    loaded = true;
+                                    resolve();
+                                } else {
+                                    reject();
+                                }
+                            };
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                            setTimeout(() => reject(), 5000); // Timeout after 5s
+                        });
+                        if (loaded) break;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                if (!loaded || typeof QRCode === 'undefined') {
+                    showNotification('No se pudo cargar la librería QR. Usa el escáner de códigos directamente.', 'warning');
+                    qrContainer.innerHTML = `
+                        <div style="text-align: center; padding: 20px; background: var(--gray-light); border-radius: 12px;">
+                            <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray); margin-bottom: 10px;"></i>
+                            <p style="color: var(--gray);">La generación de QR no está disponible.</p>
+                            <p style="color: var(--gray); font-size: 0.9rem; margin-top: 10px;">Usa el escáner para leer códigos QR de estudiantes.</p>
+                        </div>
+                    `;
+                    return;
+                }
             }
 
             // Clear container
@@ -2948,50 +3096,62 @@
             }
         }
 
-        // Wait for libraries to load with retry mechanism
-        async function waitForLibraries(maxRetries = 5, delay = 300) {
-            const requiredLibs = {
-                'jsQR': () => typeof jsQR !== 'undefined',
-                'QRCode': () => typeof QRCode !== 'undefined',
+        // Wait for critical libraries only (non-blocking)
+        async function waitForLibraries(maxRetries = 3, delay = 200) {
+            // Only wait for critical libraries - QRCode is optional
+            const criticalLibs = {
                 'firebase': () => typeof firebase !== 'undefined'
             };
 
+            const optionalLibs = {
+                'jsQR': () => typeof jsQR !== 'undefined',
+                'QRCode': () => typeof QRCode !== 'undefined'
+            };
+
+            // Wait for critical libraries
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 const missing = [];
-                for (const [name, check] of Object.entries(requiredLibs)) {
+                for (const [name, check] of Object.entries(criticalLibs)) {
                     if (!check()) {
                         missing.push(name);
                     }
                 }
 
                 if (missing.length === 0) {
-                    console.log('Todas las librerías cargadas correctamente');
-                    return true;
+                    break;
                 }
 
                 if (attempt < maxRetries - 1) {
-                    console.log(`Esperando librerías... Intento ${attempt + 1}/${maxRetries}. Faltantes: ${missing.join(', ')}`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
 
-            // Final check
-            const finalMissing = [];
-            for (const [name, check] of Object.entries(requiredLibs)) {
+            // Check optional libraries (don't wait, just log)
+            const optionalMissing = [];
+            for (const [name, check] of Object.entries(optionalLibs)) {
                 if (!check()) {
-                    finalMissing.push(name);
+                    optionalMissing.push(name);
                 }
             }
 
-            if (finalMissing.length > 0) {
-                console.warn('Librerías que no se cargaron después de esperar:', finalMissing);
-                // No bloquear la app, solo mostrar advertencia
-                if (typeof showNotification === 'function') {
-                    showNotification('Algunas funciones pueden no estar disponibles. Si tienes problemas, recarga la página.', 'warning');
+            if (optionalMissing.length > 0) {
+                console.log('Librerías opcionales no cargadas (funciones limitadas):', optionalMissing);
+            }
+
+            // Check critical
+            const criticalMissing = [];
+            for (const [name, check] of Object.entries(criticalLibs)) {
+                if (!check()) {
+                    criticalMissing.push(name);
                 }
             }
 
-            return finalMissing.length === 0;
+            if (criticalMissing.length > 0) {
+                console.error('Librerías críticas faltantes:', criticalMissing);
+                return false;
+            }
+
+            return true;
         }
 
         // Ensure initial data is loaded after auth
