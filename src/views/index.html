@@ -3,454 +3,1180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Asistencia</title>
-    <link rel="stylesheet" href="/styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Asistencia QR - Gestión Estudiantil</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script>
+        // Inicializar Firebase (cliente) - configuración pública
+        // Mantén estas claves en el frontend; las credenciales sensibles están en el servidor.
+        const firebaseClientConfig = {
+            apiKey: "AIzaSyBPTiZPuy5wwR5VcmQvECaCI0QP4MF-n6w",
+            authDomain: "app-z-9ad8d.firebaseapp.com",
+            databaseURL: "https://app-z-9ad8d-default-rtdb.firebaseio.com",
+            projectId: "app-z-9ad8d",
+            storageBucket: "app-z-9ad8d.firebasestorage.app",
+            messagingSenderId: "699960964593",
+            appId: "1:699960964593:web:c4dbf134ef44e71f66c050"
+        };
+        if (!window.firebase.apps || window.firebase.apps.length === 0) {
+            try { firebase.initializeApp(firebaseClientConfig); } catch (e) { console.warn('Firebase init error', e); }
+        }
+    </script>
+    <!-- Biblioteca para generar QR (cliente) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <!-- Biblioteca para escanear QR desde cámara -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #6c63ff;
+            --secondary: #ff6584;
+            --accent: #36d1dc;
+            --dark: #2a2d43;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --gradient: linear-gradient(135deg, var(--primary), var(--accent));
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f2f5;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: var(--gradient);
+            color: white;
+            padding: 1.5rem 0;
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo i {
+            font-size: 2rem;
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 20px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 15px;
+            border-radius: 20px;
+            transition: all 0.3s;
+        }
+
+        nav a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: white;
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background-color: #f0f0f0;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background-color: white;
+            color: var(--primary);
+        }
+
+        .btn-accent {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-accent:hover {
+            background-color: #ff4d6d;
+            transform: translateY(-2px);
+        }
+
+        main {
+            padding: 30px 0;
+            min-height: calc(100vh - 180px);
+        }
+
+        .section {
+            background-color: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            color: var(--primary);
+            border-bottom: 2px solid var(--light);
+            padding-bottom: 10px;
+        }
+
+        .section-title i {
+            font-size: 1.5rem;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #eaeaea;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 25px;
+            cursor: pointer;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+        /* Modales simples */
+        .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); z-index:200; }
+        .modal.active { display:flex; }
+        .modal-card { background: white; border-radius: 10px; padding: 20px; width: 360px; max-width: 95%; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+        .modal-card h3 { margin-bottom: 12px; }
+        .modal-card .form-group { margin-bottom:10px; }
+        .modal-close { float: right; cursor: pointer; background: transparent; border: none; font-size: 1.1rem; }
+
+        .qr-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            border: 2px dashed var(--primary);
+            border-radius: 15px;
+            margin: 20px 0;
+            background-color: #f9f9ff;
+        }
+
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .qr-code img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid var(--primary);
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+
+        .card-info {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .student-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid #eaeaea;
+        }
+
+        .student-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .student-item:last-child {
+            border-bottom: none;
+        }
+
+        .student-info h4 {
+            margin-bottom: 5px;
+        }
+
+        .student-info p {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .student-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status.present {
+            background-color: #d4edda;
+            color: var(--success);
+        }
+
+        .status.absent {
+            background-color: #f8d7da;
+            color: var(--danger);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: var(--success);
+            border-left: 5px solid var(--success);
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: var(--danger);
+            border-left: 5px solid var(--danger);
+        }
+
+        .alert-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-left: 5px solid #0c5460;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        footer {
+            background-color: var(--dark);
+            color: white;
+            padding: 30px 0;
+            text-align: center;
+        }
+
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .footer-content p {
+            opacity: 0.8;
+        }
+
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .profile-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .scan-area {
+            text-align: center;
+            padding: 30px;
+            border: 3px dashed var(--accent);
+            border-radius: 15px;
+            margin: 20px 0;
+            background-color: #f0fdff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .scan-area:hover {
+            background-color: #e6f7fa;
+        }
+
+        .scan-area i {
+            font-size: 3rem;
+            color: var(--accent);
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            nav ul {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .student-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .student-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
 </head>
 <body>
-    <!-- Página de Login -->
-    <div id="loginPage" class="page active">
-        <div class="login-container">
-            <div class="login-card">
-                <div class="login-header">
-                    <div class="logo">
-                        <i class="fas fa-graduation-cap"></i>
-                        <h1>Panel Docente</h1>
-                    </div>
-                    <p>Control de Asistencia Docente</p>
-                </div>
-                
-                <form id="loginForm" class="login-form">
-                    <div class="input-group">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="email" placeholder="Correo electrónico" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="password" placeholder="Contraseña" required>
-                        <button type="button" class="toggle-password" onclick="togglePassword()">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </div>
-                    
-                    <button type="submit" class="login-btn">
-                        <span>Iniciar Sesión</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
-                </form>
-                
-                <div class="login-footer">
-                    <p>¿No tienes cuenta? <a href="#" onclick="showRegister()">Regístrate aquí</a></p>
-                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">¿Eres estudiante?</p>
-                        <a href="/scan" style="
-                            display: inline-flex;
-                            align-items: center;
-                            gap: 0.5rem;
-                            color: var(--secondary-color);
-                            text-decoration: none;
-                            font-weight: 500;
-                            padding: 0.5rem 1rem;
-                            border: 1px solid var(--secondary-color);
-                            border-radius: var(--border-radius);
-                            transition: var(--transition);
-                            font-size: 0.875rem;
-                        " onmouseover="this.style.background='var(--secondary-color)'; this.style.color='var(--white)'" onmouseout="this.style.background='transparent'; this.style.color='var(--secondary-color)'">
-                            <i class="fas fa-user-graduate"></i>
-                            Acceder como Estudiante
-                        </a>
-                    </div>
-                </div>
+    <header>
+        <div class="container header-content">
+            <div class="logo">
+                <i class="fas fa-qrcode"></i>
+                <h1>Asistencia QR</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="#" id="tab-inicio">Inicio</a></li>
+                    <li><a href="#" id="tab-registro">Registro Estudiantes</a></li>
+                    <li><a href="#" id="tab-asistencia">Registrar Asistencia</a></li>
+                    <li><a href="#" id="tab-estudiantes">Lista Estudiantes</a></li>
+                    <li><a href="#" id="tab-ciclos">Ciclos y Cursos</a></li>
+                </ul>
+            </nav>
+            <div class="auth-buttons" id="auth-buttons">
+                <button class="btn btn-secondary" id="login-btn">Iniciar Sesión</button>
+                <button class="btn btn-primary" id="register-btn">Registrarse</button>
+            </div>
+            <div class="profile-info hidden" id="profile-info">
+                <div class="profile-img" id="profile-initial">M</div>
+                <span id="profile-name">Docente</span>
+                <button class="btn btn-secondary" id="logout-btn">Cerrar Sesión</button>
             </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Página de Registro -->
-    <div id="registerPage" class="page">
-        <div class="login-container">
-            <div class="login-card">
-                <div class="login-header">
-                    <div class="logo">
-                        <i class="fas fa-graduation-cap"></i>
-                        <h1>Control Asistencia</h1>
-                    </div>
-                    <p>Crear cuenta de docente</p>
-                </div>
-                
-                <form id="registerForm" class="login-form">
-                    <div class="input-group">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="fullName" placeholder="Nombre completo" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="regEmail" placeholder="Correo electrónico" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="regPassword" placeholder="Contraseña" required>
-                        <button type="button" class="toggle-password" onclick="toggleRegPassword()">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="input-group">
-                        <i class="fas fa-school"></i>
-                        <input type="text" id="institution" placeholder="Institución educativa" required>
-                    </div>
-                    
-                    <button type="submit" class="login-btn">
-                        <span>Crear Cuenta</span>
-                        <i class="fas fa-user-plus"></i>
-                    </button>
-                </form>
-                
-                <div class="login-footer">
-                    <p>¿Ya tienes cuenta? <a href="#" onclick="showLogin()">Inicia sesión aquí</a></p>
-                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">¿Eres estudiante?</p>
-                        <a href="/scan" style="
-                            display: inline-flex;
-                            align-items: center;
-                            gap: 0.5rem;
-                            color: var(--secondary-color);
-                            text-decoration: none;
-                            font-weight: 500;
-                            padding: 0.5rem 1rem;
-                            border: 1px solid var(--secondary-color);
-                            border-radius: var(--border-radius);
-                            transition: var(--transition);
-                            font-size: 0.875rem;
-                        " onmouseover="this.style.background='var(--secondary-color)'; this.style.color='var(--white)'" onmouseout="this.style.background='transparent'; this.style.color='var(--secondary-color)'">
-                            <i class="fas fa-user-graduate"></i>
-                            Acceder como Estudiante
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Dashboard Principal -->
-    <div id="dashboardPage" class="page">
-        <div class="dashboard">
-            <!-- Sidebar -->
-            <div class="sidebar">
-                <div class="sidebar-header">
-                    <div class="logo">
-                        <i class="fas fa-graduation-cap"></i>
-                        <h2>ControlAsistencia</h2>
-                    </div>
-                </div>
-                
-                <nav class="sidebar-nav">
-                    <a href="#" class="nav-item active" onclick="showSection('overview')">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>Resumen</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="showSection('students')">
-                        <i class="fas fa-users"></i>
-                        <span>Alumnos</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="showSection('attendance')">
-                        <i class="fas fa-calendar-check"></i>
-                        <span>Asistencia</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="showSection('courses')">
-                        <i class="fas fa-book"></i>
-                        <span>Unidades Didácticas</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="showSection('reports')">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Reportes</span>
-                    </a>
-                </nav>
-                
-                <div class="sidebar-footer">
-                    <div class="user-info">
-                        <div class="user-avatar">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <div class="user-details">
-                            <span class="user-name" id="userName">Profesor</span>
-                            <span class="user-email" id="userEmail">profesor@email.com</span>
-                        </div>
-                    </div>
-                    <button class="logout-btn" onclick="logout()">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Main Content -->
-            <div class="main-content">
-                <!-- Header -->
-                <header class="main-header">
-                        <div class="header-left">
-                            <h1 id="pageTitle">Resumen</h1>
-                            <p id="pageSubtitle">Bienvenido al panel de control</p>
-                        </div>
-                        <div class="header-right">
-                            <div class="date-time" id="dateTime"></div>
-                            <a id="generateQrBtn" 
-                            href="/student" 
-                            class="btn-secondary" 
-                            style="display:flex; margin-left:0.75rem; align-items:center; gap:0.5rem; padding:0.6rem 0.9rem; border-radius:8px; text-decoration:none;">
-                                <i class="fas fa-qrcode"></i>
-                                <span>Generar QR</span>
-                            </a>
-                        </div>
-                </header>
-                
-                <!-- Content Sections -->
-                <div class="content">
-                    <!-- Overview Section -->
-                    <div id="overviewSection" class="section active">
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <div class="stat-icon">
-                                    <i class="fas fa-users"></i>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="totalStudents">0</h3>
-                                    <p>Total Alumnos</p>
-                                </div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-icon">
-                                    <i class="fas fa-calendar-check"></i>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="todayAttendance">0%</h3>
-                                    <p>Asistencia Hoy</p>
-                                </div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-icon">
-                                    <i class="fas fa-book"></i>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="totalCourses">0</h3>
-                                    <p>Unidades Didácticas</p>
-                                </div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-icon">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="avgAttendance">0%</h3>
-                                    <p>Promedio General</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="recent-activity">
-                            <h2>Actividad Reciente</h2>
-                            <div class="activity-list" id="recentActivity">
-                                <!-- Activity items will be added here -->
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Students Section -->
-                    <div id="studentsSection" class="section">
-                        <div class="section-header">
-                            <h2>Gestión de Alumnos</h2>
-                            <button class="btn-primary" onclick="showAddStudentModal()">
-                                <i class="fas fa-plus"></i>
-                                Agregar Alumno
-                            </button>
-                        </div>
-                        
-                        <div class="students-grid" id="studentsGrid">
-                            <!-- Students will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Attendance Section -->
-                    <div id="attendanceSection" class="section">
-                        <div class="section-header">
-                            <h2>Control de Asistencia</h2>
-                            <div class="attendance-controls">
-                                <input type="date" id="attendanceDateFilter" class="select-input" onchange="filterAttendanceByDate()">
-                                <select id="courseSelect" class="select-input">
-                                    <option value="">Seleccionar Unidad Didáctica</option>
-                                </select>
-                                <!-- <button class="btn-primary" onclick="openCameraForAttendance()">
-                                    <i class="fas fa-camera"></i>
-                                    Abrir Cámara (QR)
-                                </button> -->
-                            </div>
-                        </div>
-
-                        <!-- Lista de asistencia del día -->
-                        <div style="margin-bottom: 2rem;">
-                            <h3 style="color: var(--primary-color); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-list-check"></i>
-                                Asistencia de hoy
-                            </h3>
-                            <div id="todayAttendanceList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                                <div style="padding: 2rem; text-align: center; color: var(--text-secondary); grid-column: 1/-1;">
-                                    Cargando asistencia del día...
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Cámara y preview para escaneo QR -->
-                        <div id="cameraOverlay" style="display:none;margin-top:1rem;">
-                            <div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;">
-                                <div style="flex:1;min-width:280px;display:flex;align-items:center;justify-content:center;">
-                                    <video id="cameraVideo" autoplay playsinline style="width:100%;max-width:640px;border-radius:8px;background:#000;"></video>
-                                    <canvas id="cameraCanvas" style="display:none"></canvas>
-                                </div>
-                                <div style="width:320px;">
-                                    <div style="background:var(--card-bg);padding:1rem;border-radius:8px;border:1px solid var(--border-color);">
-                                        <h3 style="margin-bottom:0.5rem;color:var(--text-primary);">Escaneo QR</h3>
-                                        <p id="scanResult" style="color:var(--text-secondary);min-height:60px;">Esperando escaneo...</p>
-                                        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
-                                            <button class="btn-primary" id="startCameraBtn" onclick="openCameraForAttendance()">Iniciar</button>
-                                            <button class="btn-secondary" id="stopCameraBtn" onclick="stopCamera()">Detener</button>
-                                            <a href="/student" class="btn-secondary" style="margin-left:auto;">Generar QR (estudiantes)</a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="attendance-calendar" id="attendanceCalendar" style="margin-top:1rem;">
-                            <!-- Calendar will be generated here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Courses Section -->
-                    <div id="coursesSection" class="section">
-                        <div class="section-header">
-                            <h2>Unidades Didácticas</h2>
-                            <button class="btn-primary" onclick="showAddCourseModal()">
-                                <i class="fas fa-plus"></i>
-                                Nueva Unidad
-                            </button>
-                        </div>
-                        
-                        <div class="courses-grid" id="coursesGrid">
-                            <!-- Courses will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Reports Section -->
-                    <div id="reportsSection" class="section">
-                        <div class="section-header">
-                            <h2>Reportes y Estadísticas</h2>
-                            <div class="report-controls">
-                                <select id="reportPeriod" class="select-input">
-                                    <option value="week">Esta Semana</option>
-                                    <option value="month">Este Mes</option>
-                                    <option value="semester">Este Semestre</option>
-                                </select>
-                                <button class="btn-secondary" onclick="generateReport()">
-                                    <i class="fas fa-download"></i>
-                                    Exportar
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="reports-content">
-                            <div class="chart-container">
-                                <canvas id="attendanceChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modales -->
-    <div id="addStudentModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Agregar Alumno</h3>
-                <button class="close-btn" onclick="closeModal('addStudentModal')">&times;</button>
-            </div>
-            <form id="addStudentForm" class="modal-form">
+    <!-- Modales: Login y Registro Docente -->
+    <div class="modal" id="login-modal">
+        <div class="modal-card">
+            <button class="modal-close" id="login-close">✕</button>
+            <h3>Iniciar sesión (Docente)</h3>
+            <form id="login-form">
                 <div class="form-group">
-                    <label>Nombre Completo</label>
-                    <input type="text" id="studentName" required>
+                    <label for="login-email">Email</label>
+                    <input id="login-email" type="email" class="form-control" required />
                 </div>
                 <div class="form-group">
-                    <label>Número de Identificación</label>
-                    <input type="text" id="studentId" required>
+                    <label for="login-pass">Contraseña</label>
+                    <input id="login-pass" type="password" class="form-control" required />
                 </div>
-                <div class="form-group">
-                    <label>Correo Electrónico</label>
-                    <input type="email" id="studentEmail">
-                </div>
-                <div class="form-group">
-                    <label>Teléfono</label>
-                    <input type="tel" id="studentPhone">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="closeModal('addStudentModal')">Cancelar</button>
-                    <button type="submit" class="btn-primary">Agregar</button>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+                    <button type="submit" class="btn btn-accent">Ingresar</button>
+                    <button type="button" class="btn btn-secondary" id="open-register-from-login">Crear cuenta</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="addCourseModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Nueva Unidad Didáctica</h3>
-                <button class="close-btn" onclick="closeModal('addCourseModal')">&times;</button>
-            </div>
-            <form id="addCourseForm" class="modal-form">
+    <div class="modal" id="register-modal">
+        <div class="modal-card">
+            <button class="modal-close" id="register-close">✕</button>
+            <h3>Registro Docente</h3>
+            <form id="register-form">
                 <div class="form-group">
-                    <label>Nombre de la Unidad *</label>
-                    <input type="text" id="courseName" required>
+                    <label for="reg-email">Email</label>
+                    <input id="reg-email" type="email" class="form-control" required />
                 </div>
                 <div class="form-group">
-                    <label>Código</label>
-                    <input type="text" id="courseCode" placeholder="Ej: ALGO-101">
+                    <label for="reg-pass">Contraseña (mín 6)</label>
+                    <input id="reg-pass" type="password" class="form-control" required minlength="6" />
                 </div>
                 <div class="form-group">
-                    <label>Descripción</label>
-                    <textarea id="courseDescription" rows="3"></textarea>
+                    <label for="reg-name">Nombre para mostrar</label>
+                    <input id="reg-name" type="text" class="form-control" />
                 </div>
                 <div class="form-group">
-                    <label>Instructor</label>
-                    <input type="text" id="courseInstructor" placeholder="Nombre del instructor">
+                    <label for="reg-photo">URL avatar (opcional)</label>
+                    <input id="reg-photo" type="url" class="form-control" />
                 </div>
-                <div class="form-group">
-                    <label>Horario</label>
-                    <input type="text" id="courseSchedule" placeholder="Ej: Lunes y Miércoles 8:00-10:00">
-                </div>
-                <div class="form-group">
-                    <label>Aula</label>
-                    <input type="text" id="courseRoom" placeholder="Ej: Aula 201">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="closeModal('addCourseModal'); editingCourseId = null;">Cancelar</button>
-                    <button type="submit" class="btn-primary">Crear</button>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+                    <button type="submit" class="btn btn-primary">Crear cuenta</button>
+                    <button type="button" class="btn btn-secondary" id="open-login-from-register">Volver a login</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="/script.js"></script>
-    <script src="/dashboard-firebase.js"></script>
+    <main class="container">
+        <!-- Sección de Inicio -->
+        <section id="inicio" class="tab-content active">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-home"></i> Bienvenido al Sistema de Asistencia QR</h2>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>Docente:</strong> Manuel Esteban Mogollón García<br>
+                        <strong>Curso:</strong> Fundamentos y diseño de redes de comunicación<br>
+                        <strong>Ciclo:</strong> Ciclo I - Arquitectura de Plataformas y Servicios de TI
+                    </div>
+                </div>
+                
+                <div class="grid">
+                    <div class="card">
+                        <h3 class="card-title"><i class="fas fa-qrcode"></i> Registrar Asistencia</h3>
+                        <p class="card-info">Escanea el código QR para registrar la asistencia de los estudiantes de manera rápida y eficiente.</p>
+                        <button class="btn btn-accent" id="go-asistencia">Ir a Registrar Asistencia</button>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title"><i class="fas fa-user-plus"></i> Registrar Estudiantes</h3>
+                        <p class="card-info">Registra nuevos estudiantes en el sistema para que puedan marcar su asistencia.</p>
+                        <button class="btn btn-primary" id="go-registro">Ir a Registro</button>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title"><i class="fas fa-users"></i> Ver Estudiantes</h3>
+                        <p class="card-info">Consulta la lista completa de estudiantes registrados y su estado de asistencia.</p>
+                        <button class="btn btn-primary" id="go-estudiantes">Ver Lista</button>
+                    </div>
+                </div>
+                
+                <div class="qr-container">
+                    <h3>Código QR para Asistencia</h3>
+                    <p>Los estudiantes pueden escanear este código para registrar su asistencia</p>
+                    <div class="qr-code" id="qr-code">
+                        <span>Generando código QR...</span>
+                    </div>
+                    <button class="btn btn-primary" id="generate-qr">Generar Nuevo QR</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Registro de Estudiantes -->
+        <section id="registro" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-user-plus"></i> Registro de Estudiantes</h2>
+                <p>Los estudiantes pueden registrarse ingresando sus datos personales.</p>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Los estudiantes solo necesitan completar este formulario una vez para poder registrar su asistencia.
+                </div>
+                
+                <form id="student-register-form">
+                    <div class="grid">
+                        <div class="form-group">
+                            <label for="student-cycle">Ciclo</label>
+                            <select id="student-cycle" class="form-control" required>
+                                <option value="">Seleccionar ciclo</option>
+                                <option value="Ciclo I">Ciclo I</option>
+                                <option value="Ciclo II">Ciclo II</option>
+                                <option value="Ciclo III">Ciclo III</option>
+                                <option value="Ciclo IV">Ciclo IV</option>
+                                <option value="Ciclo V">Ciclo V</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="student-course">Curso</label>
+                            <select id="student-course" class="form-control" required>
+                                <option value="">Seleccionar curso</option>
+                                <option value="Arquitectura_de_Plataformas_y_Servicios_de_TI">Arquitectura de Plataformas y Servicios de TI</option>
+                                <option value="Fundamentos_y_diseño_de_redes_de_comunicación">Fundamentos y diseño de redes de comunicación</option>
+                                <option value="Programación_Web">Programación Web</option>
+                                <option value="Base_de_Datos">Base de Datos</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid">
+                        <div class="form-group">
+                            <label for="student-names">Nombres</label>
+                            <input type="text" id="student-names" class="form-control" placeholder="Ingresa tus nombres" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="student-lastnames">Apellidos</label>
+                            <input type="text" id="student-lastnames" class="form-control" placeholder="Ingresa tus apellidos" required>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-accent">Registrar Estudiante</button>
+                </form>
+                
+                <div id="register-message" class="alert hidden"></div>
+            </div>
+        </section>
+
+        <!-- Sección de Registro de Asistencia -->
+        <section id="asistencia" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-clipboard-check"></i> Registrar Asistencia</h2>
+                
+                <div class="tabs">
+                    <div class="tab active" id="tab-scan">Escanear QR</div>
+                    <div class="tab" id="tab-manual">Registro Manual</div>
+                </div>
+                
+                <div id="scan-content" class="tab-content active">
+                    <div class="scan-area" id="scan-area">
+                        <div id="scan-prompt">
+                            <i class="fas fa-camera"></i>
+                            <h3>Haz clic para escanear código QR</h3>
+                            <p>Permite el acceso a la cámara para escanear el código QR del estudiante</p>
+                        </div>
+                        <div id="qr-reader" class="hidden" style="width:100%"></div>
+                        <div id="scan-result" class="hidden"></div>
+                        <div id="scan-history" class="scan-history hidden"></div>
+                    </div>
+                    
+                    <div class="qr-container">
+                        <h3>O usa este código QR para la clase</h3>
+                        <div class="qr-code" id="attendance-qr">
+                            <span>Código QR de la clase</span>
+                        </div>
+                        <p>Este código QR es válido para la clase actual</p>
+                    </div>
+                </div>
+                
+                <div id="manual-content" class="tab-content">
+                    <h3>Registro Manual de Asistencia</h3>
+                    <p>Selecciona un estudiante y marca su asistencia manualmente</p>
+                    
+                    <div class="form-group">
+                        <label for="select-student">Seleccionar Estudiante</label>
+                        <select id="select-student" class="form-control">
+                            <option value="">Seleccionar estudiante</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="attendance-status">Estado de Asistencia</label>
+                        <select id="attendance-status" class="form-control">
+                            <option value="present">Presente</option>
+                            <option value="absent">Ausente</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-accent" id="mark-attendance">Registrar Asistencia</button>
+                    
+                    <div id="attendance-message" class="alert hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Lista de Estudiantes -->
+        <section id="estudiantes" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-users"></i> Lista de Estudiantes</h2>
+                <p>Gestiona a los estudiantes registrados en el sistema.</p>
+                
+                <div class="form-group">
+                    <input type="text" id="search-student" class="form-control" placeholder="Buscar estudiante por nombre o apellido...">
+                </div>
+                
+                <div class="student-list" id="student-list">
+                    <!-- Los estudiantes se cargarán aquí dinámicamente -->
+                    <div class="student-item">
+                        <div class="student-info">
+                            <h4>Juan Pérez</h4>
+                            <p>Ciclo I | Fundamentos y diseño de redes de comunicación</p>
+                        </div>
+                        <div class="student-actions">
+                            <span class="status present">Presente</span>
+                            <button class="btn btn-primary">Editar</button>
+                            <button class="btn btn-secondary">Eliminar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Ciclos y Cursos -->
+        <section id="ciclos" class="tab-content">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-graduation-cap"></i> Ciclos y Cursos</h2>
+                
+                <div class="grid">
+                    <div class="card">
+                        <h3 class="card-title">Ciclo I</h3>
+                        <p class="card-info"><strong>Docente:</strong> Manuel Esteban Mogollón García</p>
+                        <p class="card-info"><strong>Curso:</strong> Fundamentos y diseño de redes de comunicación</p>
+                        <p class="card-info"><strong>Materia:</strong> Arquitectura de Plataformas y Servicios de TI</p>
+                        <p class="card-info"><strong>Estudiantes inscritos:</strong> <span id="count-ciclo1">0</span></p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Ciclo II</h3>
+                        <p class="card-info"><strong>Docente:</strong> Por asignar</p>
+                        <p class="card-info"><strong>Curso:</strong> Por definir</p>
+                        <p class="card-info"><strong>Materia:</strong> Por definir</p>
+                        <p class="card-info"><strong>Estudiantes inscritos:</strong> <span id="count-ciclo2">0</span></p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Ciclo III</h3>
+                        <p class="card-info"><strong>Docente:</strong> Por asignar</p>
+                        <p class="card-info"><strong>Curso:</strong> Por definir</p>
+                        <p class="card-info"><strong>Materia:</strong> Por definir</p>
+                        <p class="card-info"><strong>Estudiantes inscritos:</strong> <span id="count-ciclo3">0</span></p>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 30px;">Gestión de Cursos</h3>
+                <div class="form-group">
+                    <label for="new-course">Agregar Nuevo Curso</label>
+                    <input type="text" id="new-course" class="form-control" placeholder="Nombre del nuevo curso">
+                </div>
+                <button class="btn btn-primary" id="add-course">Agregar Curso</button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Cliente (ES): usa la API del servidor con Firebase Realtime Database. Variables y funciones en español.
+        // Si el frontend se sirve desde un servidor de desarrollo (ej. Live Server en puerto 3000)
+        // redirigimos las llamadas al backend en el puerto 5000 donde corre Express.
+        const backendOrigin = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? 'http://localhost:5000' : '';
+        let usuarioActual = null;
+        let estudiantes = [];
+        let attendanceSessionId = null;
+        let html5QrCodeInstance = null;
+
+        function generarIdSesion() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            configurarNavegacion();
+            configurarBotonesAuth();
+            configurarFormularios();
+            configurarEventosBotones();
+
+            // Mantener sesión si ya existe (Firebase)
+            try {
+                firebase.auth().onAuthStateChanged(async user => {
+                    if (user) {
+                        const token = await user.getIdToken();
+                        usuarioActual = { displayName: user.displayName || user.email, email: user.email, idToken: token };
+                        actualizarUIAuth(usuarioActual);
+                    } else {
+                        usuarioActual = null;
+                        actualizarUIAuth(null);
+                    }
+                });
+            } catch(e) { console.warn('Firebase Auth no disponible', e); }
+
+            // Verificar estado del servidor / Firebase
+            try {
+                const salud = await fetch(`${backendOrigin}/api/health`);
+                const j = await salud.json();
+                if (!salud.ok || !j.ok) throw new Error(j.error || 'Sin conexión a Firebase');
+                iniciarSSE();
+                await cargarEstudiantes();
+            } catch (err) {
+                console.error('Error de conexión a la API/Firebase:', err);
+                mostrarMensaje('No fue posible conectar con Firebase Realtime Database. Verifica variables de entorno en el servidor.', 'error');
+                deshabilitarFuncionesDocente();
+            }
+
+            attendanceSessionId = generarIdSesion();
+            generarCodigoQR();
+        });
+
+        function configurarNavegacion() {
+            const tabs = document.querySelectorAll('nav a, .tab');
+            tabs.forEach(tab => tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                const tabId = this.id.replace('tab-', '');
+                mostrarPestana(tabId);
+            }));
+
+            document.getElementById('go-asistencia').addEventListener('click', () => mostrarPestana('asistencia'));
+            document.getElementById('go-registro').addEventListener('click', () => mostrarPestana('registro'));
+            document.getElementById('go-estudiantes').addEventListener('click', () => mostrarPestana('estudiantes'));
+
+            document.getElementById('tab-scan').addEventListener('click', () => {
+                document.querySelectorAll('#asistencia .tab').forEach(t => t.classList.remove('active'));
+                document.getElementById('tab-scan').classList.add('active');
+                document.querySelectorAll('#asistencia .tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById('scan-content').classList.add('active');
+            });
+
+            document.getElementById('tab-manual').addEventListener('click', () => {
+                document.querySelectorAll('#asistencia .tab').forEach(t => t.classList.remove('active'));
+                document.getElementById('tab-manual').classList.add('active');
+                document.querySelectorAll('#asistencia .tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById('manual-content').classList.add('active');
+                cargarEstudiantesParaAsistenciaManual();
+            });
+        }
+
+        function mostrarPestana(id) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            const el = document.getElementById(id); if (el) el.classList.add('active');
+            document.querySelectorAll('nav a').forEach(link => link.style.backgroundColor = '');
+            const activeNavLink = document.getElementById(`tab-${id}`); if (activeNavLink) activeNavLink.style.backgroundColor = 'rgba(255,255,255,0.2)';
+            if (id === 'estudiantes') cargarEstudiantes();
+            if (id === 'ciclos') actualizarConteosCiclos();
+        }
+
+        function configurarBotonesAuth() {
+            document.getElementById('login-btn').addEventListener('click', mostrarLoginModal);
+            document.getElementById('register-btn').addEventListener('click', mostrarRegisterModal);
+            document.getElementById('logout-btn').addEventListener('click', cerrarSesion);
+        }
+
+        function configurarFormularios() {
+            document.getElementById('student-register-form').addEventListener('submit', e => { e.preventDefault(); registrarEstudiante(); });
+            document.getElementById('mark-attendance').addEventListener('click', marcarAsistenciaManual);
+            document.getElementById('search-student').addEventListener('input', filtrarEstudiantes);
+            document.getElementById('add-course').addEventListener('click', addNewCourse);
+        }
+
+        function configurarEventosBotones() {
+            document.getElementById('generate-qr').addEventListener('click', generarCodigoQR);
+            document.getElementById('scan-area').addEventListener('click', iniciarEscaneoQR);
+            // Modal controls
+            document.getElementById('login-close').addEventListener('click', () => toggleModal('login-modal', false));
+            document.getElementById('register-close').addEventListener('click', () => toggleModal('register-modal', false));
+            document.getElementById('open-register-from-login').addEventListener('click', () => { toggleModal('login-modal', false); toggleModal('register-modal', true); });
+            document.getElementById('open-login-from-register').addEventListener('click', () => { toggleModal('register-modal', false); toggleModal('login-modal', true); });
+            document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+            document.getElementById('register-form').addEventListener('submit', handleRegisterSubmit);
+        }
+
+        function toggleModal(id, show) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (show) el.classList.add('active'); else el.classList.remove('active');
+        }
+
+        function mostrarLoginModal() { toggleModal('login-modal', true); }
+        function mostrarRegisterModal() { toggleModal('register-modal', true); }
+
+        async function handleLoginSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            if (!email || !pass) return mostrarMensaje('Completa email y contraseña', 'error');
+            try {
+                const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+                const user = cred.user;
+                const token = await user.getIdToken();
+                usuarioActual = { displayName: user.displayName || user.email, email: user.email, idToken: token, photoURL: user.photoURL || null };
+                actualizarUIAuth(usuarioActual);
+                toggleModal('login-modal', false);
+                mostrarMensaje('Sesión iniciada', 'success');
+                await cargarEstudiantes();
+            } catch (err) {
+                console.error(err);
+                mostrarMensaje('Error en login: ' + (err.message||err), 'error');
+            }
+        }
+
+        async function handleRegisterSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('reg-email').value.trim();
+            const pass = document.getElementById('reg-pass').value;
+            const name = document.getElementById('reg-name').value.trim();
+            const photo = document.getElementById('reg-photo').value.trim() || null;
+            if (!email || !pass) return mostrarMensaje('Completa email y contraseña', 'error');
+            try {
+                const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+                const user = cred.user;
+                if (name || photo) {
+                    await user.updateProfile({ displayName: name || undefined, photoURL: photo || undefined }).catch(()=>{});
+                }
+                const token = await user.getIdToken();
+                usuarioActual = { displayName: user.displayName || user.email, email: user.email, idToken: token, photoURL: user.photoURL || null };
+                actualizarUIAuth(usuarioActual);
+                toggleModal('register-modal', false);
+                mostrarMensaje('Registro completado y sesión iniciada', 'success');
+                await cargarEstudiantes();
+            } catch (err) {
+                console.error(err);
+                mostrarMensaje('Error registro: ' + (err.message||err), 'error');
+            }
+        }
+
+        function cerrarSesion() { if (!confirm('¿Deseas cerrar sesión?')) return; try { firebase.auth().signOut().catch(()=>{}); } catch(e){} usuarioActual = null; actualizarUIAuth(null); mostrarPestana('inicio'); }
+
+        function actualizarUIAuth(user) {
+            const authButtons = document.getElementById('auth-buttons');
+            const profileInfo = document.getElementById('profile-info');
+            if (user) { authButtons.classList.add('hidden'); profileInfo.classList.remove('hidden'); const displayName = user.displayName || user.email || 'Docente'; document.getElementById('profile-name').textContent = displayName; document.getElementById('profile-initial').textContent = displayName.charAt(0).toUpperCase(); habilitarFuncionesDocente(); }
+            else { authButtons.classList.remove('hidden'); profileInfo.classList.add('hidden'); deshabilitarFuncionesDocente(); }
+        }
+
+        function habilitarFuncionesDocente() { document.querySelectorAll('nav a').forEach(l => l.style.display = 'block'); document.querySelectorAll('.btn').forEach(b => b.disabled = false); }
+        function deshabilitarFuncionesDocente() { document.querySelectorAll('nav a:not(#tab-inicio)').forEach(l => l.style.display = 'none'); document.querySelectorAll('#registro .btn, #asistencia .btn, #estudiantes .btn, #ciclos .btn').forEach(b => b.disabled = true); mostrarPestana('inicio'); }
+
+        // --- Comunicación con el servidor ---
+        async function cargarEstudiantes() {
+            try {
+                const res = await fetch(`${backendOrigin}/api/students`);
+                estudiantes = await res.json();
+                renderListaEstudiantes();
+            } catch (err) { console.error(err); mostrarMensaje('No se pudo cargar la lista de estudiantes', 'error'); }
+        }
+
+        async function registrarEstudiante() {
+            // Registro público: validar campos mínimos
+            const ciclo = document.getElementById('student-cycle').value;
+            const curso = document.getElementById('student-course').value;
+            const nombres = document.getElementById('student-names').value.trim();
+            const apellidos = document.getElementById('student-lastnames').value.trim();
+            if (!ciclo || !curso || !nombres || !apellidos) return mostrarMensaje('Completa todos los campos', 'error', 'register-message');
+            if (nombres.length < 2 || apellidos.length < 2) return mostrarMensaje('Nombres/apellidos demasiado cortos', 'error', 'register-message');
+            try {
+                const res = await fetch(`${backendOrigin}/api/students`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ciclo, curso, nombres, apellidos }) });
+                    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'error'); }
+                await res.json();
+                document.getElementById('student-register-form').reset();
+                mostrarMensaje('Estudiante registrado correctamente', 'success', 'register-message');
+                await cargarEstudiantes();
+            } catch (err) { console.error(err); mostrarMensaje('Error registrando estudiante: ' + (err.message||err), 'error', 'register-message'); }
+        }
+
+        async function marcarAsistenciaManual() {
+            const studentId = document.getElementById('select-student').value;
+            const status = document.getElementById('attendance-status').value;
+            if (!studentId) return mostrarMensaje('Selecciona un estudiante', 'error', 'attendance-message');
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (usuarioActual && usuarioActual.idToken) headers['Authorization'] = `Bearer ${usuarioActual.idToken}`;
+                const res = await fetch(`${backendOrigin}/api/attendance`, { method: 'POST', headers, body: JSON.stringify({ studentId, status, markedBy: usuarioActual ? usuarioActual.displayName : 'Docente' }) });
+                if (!res.ok) throw new Error('error');
+                const payload = await res.json();
+                if (!payload.ok) throw new Error(payload.error || 'Error desconocido');
+                const hora = payload.registro && payload.registro.date ? new Date(payload.registro.date).toLocaleString() : new Date().toLocaleString();
+                mostrarMensaje(`Asistencia registrada: ${hora}`, 'success', 'attendance-message');
+                document.getElementById('select-student').value = '';
+                await cargarEstudiantes();
+            } catch (err) { console.error(err); mostrarMensaje('Error al marcar asistencia', 'error', 'attendance-message'); }
+        }
+
+        // SSE (real-time)
+        function iniciarSSE() {
+            try {
+                const es = new EventSource(`${backendOrigin}/api/events`);
+                es.addEventListener('students-updated', e => { try { const payload = JSON.parse(e.data); estudiantes = payload; renderListaEstudiantes(); } catch (err) { console.error(err); } });
+                es.onerror = () => console.warn('SSE conexión fallida');
+            } catch (e) { console.warn('SSE no soportado'); }
+        }
+
+        // Render
+        function renderListaEstudiantes() {
+            const lista = document.getElementById('student-list');
+            const select = document.getElementById('select-student');
+            lista.innerHTML = '';
+            select.innerHTML = '<option value="">Seleccionar estudiante</option>';
+            if (!estudiantes || estudiantes.length === 0) { lista.innerHTML = '<div class="alert alert-info">No hay estudiantes registrados aún.</div>'; return; }
+            estudiantes.forEach(s => {
+                const hoy = (s.attendance || []).some(a => new Date(a.date).toDateString() === new Date().toDateString());
+                const claseEstado = hoy ? 'present' : 'absent';
+                const textoEstado = hoy ? 'Presente' : 'Ausente';
+                const item = document.createElement('div'); item.className = 'student-item';
+                item.innerHTML = `<div class="student-info"><h4>${s.names} ${s.lastnames}</h4><p>${s.cycle} | ${s.course}</p></div><div class="student-actions"><span class="status ${claseEstado}">${textoEstado}</span><button class="btn btn-primary" onclick="editStudent('${s.id}')">Editar</button><button class="btn btn-secondary" onclick="deleteStudent('${s.id}')">Eliminar</button></div>`;
+                lista.appendChild(item);
+                const option = document.createElement('option'); option.value = s.id; option.textContent = `${s.names} ${s.lastnames} - ${s.cycle}`; select.appendChild(option);
+            });
+        }
+
+        function cargarEstudiantesParaAsistenciaManual() { cargarEstudiantes(); }
+
+        function filtrarEstudiantes() { const term = document.getElementById('search-student').value.toLowerCase(); document.querySelectorAll('.student-item').forEach(i => i.style.display = i.textContent.toLowerCase().includes(term) ? 'flex' : 'none'); }
+
+        async function iniciarEscaneoQR() {
+            if (!usuarioActual) return mostrarMensaje('Inicia sesión para escanear', 'error', 'attendance-message');
+            const prompt = document.getElementById('scan-prompt');
+            const readerEl = document.getElementById('qr-reader');
+            const resultEl = document.getElementById('scan-result');
+
+            // Si ya está activo, detenemos
+            if (html5QrCodeInstance) {
+                await html5QrCodeInstance.stop();
+                html5QrCodeInstance.clear();
+                html5QrCodeInstance = null;
+                readerEl.classList.add('hidden');
+                resultEl.classList.add('hidden');
+                prompt.classList.remove('hidden');
+                return;
+            }
+
+            // Iniciar escaneo
+            prompt.classList.add('hidden');
+            resultEl.classList.add('hidden');
+            readerEl.classList.remove('hidden');
+
+            html5QrCodeInstance = new Html5Qrcode("qr-reader");
+            const config = { fps: 10, qrbox: 250 };
+
+            const onScanSuccess = async (decodedText, decodedResult) => {
+                // decodedText puede ser JSON o un id simple
+                let studentId = null;
+                try {
+                    const parsed = JSON.parse(decodedText);
+                    studentId = parsed.studentId || parsed.id || null;
+                } catch (e) {
+                    studentId = decodedText;
+                }
+
+                // Buscar estudiante por id
+                const encontrado = estudiantes.find(s => s.id === studentId) || estudiantes.find(s => `${s.names} ${s.lastnames}`.toLowerCase() === (decodedText||'').toLowerCase());
+
+                if (!encontrado) {
+                    resultEl.innerHTML = `<div class="alert alert-error">Estudiante no encontrado: ${decodedText}</div>`;
+                    resultEl.classList.remove('hidden');
+                    // no detener el escaneo para permitir reintento
+                    return;
+                }
+
+                // Marcar asistencia en el servidor y mostrar datos del alumno + hora
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (usuarioActual && usuarioActual.idToken) headers['Authorization'] = `Bearer ${usuarioActual.idToken}`;
+                    const resp = await fetch(`${backendOrigin}/api/attendance`, { method: 'POST', headers, body: JSON.stringify({ studentId: encontrado.id, status: 'present', markedBy: usuarioActual && usuarioActual.displayName ? usuarioActual.displayName : 'Docente' }) });
+                    if (!resp.ok) throw new Error('Error en la petición');
+                    const data = await resp.json();
+                    if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                    const student = data.student;
+                    const registro = data.registro;
+                    const hora = registro && registro.date ? new Date(registro.date).toLocaleString() : new Date().toLocaleString();
+                    // Mostrar avatar o inicial
+                    const avatarHtml = student.avatar ? `<img src="${student.avatar}" alt="avatar" class="avatar-small">` : `<div class="avatar-small">${(student.names||'')[0]||''}${(student.lastnames||'')[0]||''}</div>`;
+                    resultEl.innerHTML = `<div class="alert alert-success"><strong>Asistencia registrada</strong><div class="scan-card">${avatarHtml}<div style="margin-left:10px"><div>${student.names} ${student.lastnames}</div><div style="font-size:.9rem;color:#666">${student.cycle} | ${student.course}</div><div style="font-size:.8rem;margin-top:6px">${hora}</div></div></div></div>`;
+                    resultEl.classList.remove('hidden');
+                    // Agregar al historial
+                    addToScanHistory({ student, hora });
+                    // Actualizar lista local con datos devueltos (opcional)
+                    await cargarEstudiantes();
+                } catch (err) {
+                    console.error(err);
+                    resultEl.innerHTML = `<div class="alert alert-error">Error registrando asistencia</div>`;
+                    resultEl.classList.remove('hidden');
+                }
+
+                // Detener escaneo después de registrar
+                await html5QrCodeInstance.stop();
+                html5QrCodeInstance.clear();
+                html5QrCodeInstance = null;
+                readerEl.classList.add('hidden');
+                setTimeout(() => { prompt.classList.remove('hidden'); }, 2000);
+            };
+
+            const onScanFailure = error => {
+                // Ignorar errores menores
+            };
+
+            // Start camera (prefer rear)
+            Html5Qrcode.getCameras().then(cameras => {
+                const cameraId = (cameras && cameras.length) ? cameras[0].id : null;
+                html5QrCodeInstance.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure).catch(err => {
+                    console.error('No se pudo iniciar la cámara:', err);
+                    mostrarMensaje('No fue posible acceder a la cámara. Comprueba permisos.', 'error');
+                    readerEl.classList.add('hidden');
+                    prompt.classList.remove('hidden');
+                });
+            }).catch(err => {
+                console.error('Error obteniendo cámaras:', err);
+                mostrarMensaje('No se detectó cámara disponible.', 'error');
+                readerEl.classList.add('hidden');
+                prompt.classList.remove('hidden');
+            });
+        }
+
+        function generarCodigoQR() {
+            const qrCodeElement = document.getElementById('qr-code');
+            const payload = { sessionId: attendanceSessionId, clase: 'Sin especificar', fecha: new Date().toISOString() };
+            // Usar la librería qrcode para generar una imagen
+            QRCode.toDataURL(JSON.stringify(payload)).then(url => {
+                qrCodeElement.innerHTML = `<img src="${url}" alt="QR de asistencia" style="max-width:100%;height:auto;"/>`;
+            }).catch(err => {
+                console.error('Error generando QR:', err);
+                qrCodeElement.textContent = 'No se pudo generar el QR';
+            });
+        }
+
+        // Historial de escaneos recientes
+        const scanHistory = [];
+        function addToScanHistory(entry) {
+            scanHistory.unshift(entry);
+            if (scanHistory.length > 5) scanHistory.pop();
+            renderScanHistory();
+        }
+
+        function renderScanHistory() {
+            const el = document.getElementById('scan-history');
+            if (!el) return;
+            if (!scanHistory.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+            el.classList.remove('hidden');
+            el.innerHTML = '<h4 style="margin:8px 0 6px">Últimos registros</h4>' + scanHistory.map(it => {
+                const initials = ((it.student.names||'')[0]||'') + ((it.student.lastnames||'')[0]||'');
+                const avatar = it.student.avatar ? `<img src="${it.student.avatar}" alt="avatar" style="width:36px;height:36px;border-radius:50%"/>` : `<div style="width:36px;height:36px;border-radius:50%;background:#ddd;display:flex;align-items:center;justify-content:center;color:#333">${initials}</div>`;
+                return `<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #eee"><div>${avatar}</div><div style="font-size:.95rem"><div>${it.student.names} ${it.student.lastnames}</div><div style="font-size:.8rem;color:#666">${it.student.cycle} | ${it.student.course} — ${it.hora}</div></div></div>`;
+            }).join('');
+        }
+
+        function addNewCourse() { const newCourse = document.getElementById('new-course').value; if (!newCourse) return mostrarMensaje('Ingresa nombre del curso','error'); const courseSelect = document.getElementById('student-course'); const option = document.createElement('option'); option.value = newCourse.replace(/\s+/g,'_'); option.textContent = newCourse; courseSelect.appendChild(option); document.getElementById('new-course').value = ''; mostrarMensaje('Curso agregado','success'); }
+
+        function mostrarMensaje(text, type, containerId = 'register-message') { const messageContainer = document.getElementById(containerId); messageContainer.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':type==='error'?'exclamation-circle':'info-circle'}"></i><div>${text}</div>`; messageContainer.className = `alert alert-${type==='success'?'success':type==='error'?'error':'info'}`; messageContainer.classList.remove('hidden'); setTimeout(()=>messageContainer.classList.add('hidden'),5000); }
+
+        // Edit / Delete (implementaciones simples)
+        function editStudent(id) { alert('Función de editar no implementada en esta versión'); }
+        async function deleteStudent(id) { if (!confirm('Eliminar estudiante?')) return; try { mostrarMensaje('Eliminación en servidor no implementada', 'info'); } catch(e) { mostrarMensaje('Error al eliminar', 'error'); } }
+
+        async function actualizarConteosCiclos() { const counts = { 'Ciclo I':0,'Ciclo II':0,'Ciclo III':0 }; (estudiantes||[]).forEach(s=>{ if (counts[s.cycle]!==undefined) counts[s.cycle]++; }); document.getElementById('count-ciclo1').textContent=counts['Ciclo I']; document.getElementById('count-ciclo2').textContent=counts['Ciclo II']; document.getElementById('count-ciclo3').textContent=counts['Ciclo III']; }
+    </script>
 </body>
 </html>
