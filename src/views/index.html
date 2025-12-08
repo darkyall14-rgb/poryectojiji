@@ -10,60 +10,9 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <!-- QRCode library with fallback -->
-    <script>
-        function loadQRCodeLibrary() {
-            return new Promise((resolve, reject) => {
-                if (typeof QRCode !== 'undefined') {
-                    resolve();
-                    return;
-                }
-                
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-                script.onload = () => resolve();
-                script.onerror = () => {
-                    // Fallback to alternative CDN
-                    const fallback = document.createElement('script');
-                    fallback.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
-                    fallback.onload = () => resolve();
-                    fallback.onerror = () => reject(new Error('No se pudo cargar QRCode'));
-                    document.head.appendChild(fallback);
-                };
-                document.head.appendChild(script);
-            });
-        }
-
-        function loadHtml5QrcodeLibrary() {
-            return new Promise((resolve, reject) => {
-                if (typeof Html5Qrcode !== 'undefined') {
-                    resolve();
-                    return;
-                }
-                
-                const script = document.createElement('script');
-                script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-                script.onload = () => resolve();
-                script.onerror = () => {
-                    // Fallback to alternative CDN
-                    const fallback = document.createElement('script');
-                    fallback.src = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
-                    fallback.onload = () => resolve();
-                    fallback.onerror = () => reject(new Error('No se pudo cargar Html5Qrcode'));
-                    document.head.appendChild(fallback);
-                };
-                document.head.appendChild(script);
-            });
-        }
-
-        // Load libraries asynchronously
-        Promise.all([
-            loadQRCodeLibrary().catch(err => console.warn('QRCode library:', err)),
-            loadHtml5QrcodeLibrary().catch(err => console.warn('Html5Qrcode library:', err))
-        ]).then(() => {
-            console.log('Librerías QR cargadas');
-        });
-    </script>
+    <!-- QR Libraries - Using more reliable alternatives -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -2133,13 +2082,18 @@
             }
         }
 
-        // Initialize QR Scanner
+        // Initialize QR Scanner using jsQR and native camera API
         function initQRScanner() {
             const toggleScannerBtn = document.getElementById('toggle-scanner');
             const scannerContainer = document.getElementById('qr-reader-container');
             const scanResult = document.getElementById('scan-result');
 
             let scannerActive = false;
+            let videoStream = null;
+            let videoElement = null;
+            let canvasElement = null;
+            let canvasContext = null;
+            let scanInterval = null;
 
             toggleScannerBtn.addEventListener('click', () => {
                 if (!scannerActive) {
@@ -2150,68 +2104,108 @@
             });
 
             async function startScanner() {
-                // Check if Html5Qrcode is available, try to load if not
-                if (typeof Html5Qrcode === 'undefined') {
-                    showNotification('Cargando librería de escáner...', 'info');
-                    try {
-                        await loadHtml5QrcodeLibrary();
-                    } catch (err) {
-                        showNotification('No se pudo cargar la librería de escáner. Por favor, recarga la página.', 'error');
-                        return;
-                    }
+                // Check if jsQR is available
+                if (typeof jsQR === 'undefined') {
+                    showNotification('La librería de escáner QR no está disponible. Usa la opción manual.', 'error');
+                    return;
                 }
 
-                scannerActive = true;
-                toggleScannerBtn.innerHTML = '<i class="fas fa-stop"></i> Detener Escáner';
-                scannerContainer.innerHTML = '<div id="qr-reader" style="width: 100%; max-width: 500px; margin: 0 auto;"></div>';
-                scanResult.style.display = 'none';
-
                 try {
-                    qrScanner = new Html5Qrcode("qr-reader");
-                    
-                    qrScanner.start(
-                        { facingMode: "environment" },
-                        {
-                            fps: 10,
-                            qrbox: { width: 250, height: 250 }
-                        },
-                        onScanSuccess,
-                        onScanError
-                    ).catch(err => {
-                        console.error("Error starting scanner:", err);
-                        showNotification("Error al iniciar la cámara: " + (err.message || 'Error desconocido'), "error");
-                        scannerActive = false;
-                        toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
-                        scannerContainer.innerHTML = '';
+                    // Request camera access
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
                     });
+
+                    scannerActive = true;
+                    videoStream = stream;
+                    toggleScannerBtn.innerHTML = '<i class="fas fa-stop"></i> Detener Escáner';
+                    scanResult.style.display = 'none';
+
+                    // Create video element
+                    videoElement = document.createElement('video');
+                    videoElement.style.width = '100%';
+                    videoElement.style.maxWidth = '500px';
+                    videoElement.style.margin = '0 auto';
+                    videoElement.style.display = 'block';
+                    videoElement.style.borderRadius = '12px';
+                    videoElement.setAttribute('playsinline', 'true');
+                    videoElement.setAttribute('autoplay', 'true');
+                    videoElement.srcObject = stream;
+
+                    // Create canvas for processing
+                    canvasElement = document.createElement('canvas');
+                    canvasContext = canvasElement.getContext('2d');
+
+                    // Setup container
+                    scannerContainer.innerHTML = '';
+                    scannerContainer.appendChild(videoElement);
+
+                    // Start video
+                    videoElement.play();
+
+                    // Start scanning loop
+                    scanInterval = setInterval(() => {
+                        if (!scannerActive || !videoElement || videoElement.readyState !== videoElement.HAVE_ENOUGH_DATA) {
+                            return;
+                        }
+
+                        canvasElement.height = videoElement.videoHeight;
+                        canvasElement.width = videoElement.videoWidth;
+                        canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+                        const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                        if (code) {
+                            handleQRScan(code.data);
+                            stopScanner();
+                        }
+                    }, 100);
+
                 } catch (err) {
-                    console.error("Error creating scanner:", err);
-                    showNotification("Error al crear el escáner: " + (err.message || 'Error desconocido'), "error");
+                    console.error("Error starting scanner:", err);
+                    let errorMsg = "Error al acceder a la cámara";
+                    if (err.name === 'NotAllowedError') {
+                        errorMsg = "Permiso de cámara denegado. Por favor, permite el acceso a la cámara.";
+                    } else if (err.name === 'NotFoundError') {
+                        errorMsg = "No se encontró ninguna cámara. Usa la opción manual.";
+                    } else if (err.name === 'NotReadableError') {
+                        errorMsg = "La cámara está siendo usada por otra aplicación.";
+                    }
+                    showNotification(errorMsg, "error");
                     scannerActive = false;
                     toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
-                    scannerContainer.innerHTML = '';
                 }
             }
 
             function stopScanner() {
-                if (qrScanner) {
-                    qrScanner.stop().then(() => {
-                        scannerActive = false;
-                        toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
-                        scannerContainer.innerHTML = '';
-                    }).catch(err => {
-                        console.error("Error stopping scanner:", err);
-                    });
+                scannerActive = false;
+
+                // Stop scanning loop
+                if (scanInterval) {
+                    clearInterval(scanInterval);
+                    scanInterval = null;
                 }
-            }
 
-            function onScanSuccess(decodedText) {
-                handleQRScan(decodedText);
-                stopScanner();
-            }
+                // Stop video stream
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
+                }
 
-            function onScanError(error) {
-                // Optional: handle scan errors
+                // Clear container
+                if (scannerContainer) {
+                    scannerContainer.innerHTML = '';
+                }
+
+                // Reset button
+                if (toggleScannerBtn) {
+                    toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
+                }
+
+                videoElement = null;
+                canvasElement = null;
+                canvasContext = null;
             }
         }
 
@@ -2364,7 +2358,7 @@
         }
 
         // Generate Class QR
-        async function generateClassQR() {
+        function generateClassQR() {
             const qrContainer = document.getElementById('class-qr-code');
             if (!qrContainer) return;
 
@@ -2375,15 +2369,10 @@
                 teacherId: currentUser ? currentUser.uid : 'demo'
             };
 
-            // Check if QRCode is available, try to load if not
+            // Check if QRCode is available
             if (typeof QRCode === 'undefined') {
-                showNotification('Cargando librería QR...', 'info');
-                try {
-                    await loadQRCodeLibrary();
-                } catch (err) {
-                    showNotification('No se pudo cargar la librería QR. Por favor, recarga la página.', 'error');
-                    return;
-                }
+                showNotification('La librería QR no está disponible. Por favor, recarga la página.', 'error');
+                return;
             }
 
             // Clear container
@@ -2960,10 +2949,10 @@
         }
 
         // Wait for libraries to load with retry mechanism
-        async function waitForLibraries(maxRetries = 10, delay = 500) {
+        async function waitForLibraries(maxRetries = 5, delay = 300) {
             const requiredLibs = {
+                'jsQR': () => typeof jsQR !== 'undefined',
                 'QRCode': () => typeof QRCode !== 'undefined',
-                'Html5Qrcode': () => typeof Html5Qrcode !== 'undefined',
                 'firebase': () => typeof firebase !== 'undefined'
             };
 
