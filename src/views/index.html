@@ -103,6 +103,9 @@
             gap: 20px;
         }
 
+        /* Mobile menu button (hidden on desktop) */
+        #mobile-menu-btn { display: none; border-radius: 8px; padding: 8px 10px; }
+
         nav a {
             color: white;
             text-decoration: none;
@@ -481,6 +484,27 @@
                 width: 100%;
                 justify-content: flex-end;
             }
+            /* show mobile menu button and hide nav links by default */
+            #mobile-menu-btn { display: inline-flex; }
+            nav ul { display: none; }
+            nav ul.mobile-open { display: flex; flex-direction: column; position: absolute; top: 70px; right: 20px; background: white; color: var(--dark); padding: 10px; border-radius: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); z-index: 300; }
+            nav ul.mobile-open li { margin: 6px 0; }
+            nav ul.mobile-open a { color: var(--dark); padding: 8px 12px; display: block; border-radius: 8px; }
+        }
+
+        @media (max-width: 480px) {
+            header { padding: 12px 0; }
+            .logo h1 { font-size: 1.2rem; }
+            .btn { padding: 8px 12px; font-size: 0.95rem; }
+            .modal-card { width: 95vw; padding: 14px; }
+            .modal-card h3 { font-size: 1.05rem; }
+            .form-control { padding: 10px; }
+            .qr-code { width: 140px; height: 140px; }
+            .scan-area { padding: 18px; }
+            .scan-area i { font-size: 2.2rem; }
+            .profile-info span { display: none; }
+            .btn-block { width: 100%; }
+            .entry-choices .btn { width: 100%; }
         }
     </style>
 </head>
@@ -491,6 +515,7 @@
                 <i class="fas fa-qrcode"></i>
                 <h1>Asistencia QR</h1>
             </div>
+            <button id="mobile-menu-btn" class="btn btn-primary hidden" aria-label="Menú"><i class="fas fa-bars"></i></button>
             <nav>
                 <ul>
                     <li><a href="#" id="tab-inicio">Inicio</a></li>
@@ -882,6 +907,16 @@
                 document.getElementById('manual-content').classList.add('active');
                 cargarEstudiantesParaAsistenciaManual();
             });
+
+            // mobile menu toggle
+            const mobileBtn = document.getElementById('mobile-menu-btn');
+            const navUl = document.querySelector('nav ul');
+            if (mobileBtn && navUl) {
+                mobileBtn.addEventListener('click', () => {
+                    navUl.classList.toggle('mobile-open');
+                    mobileBtn.classList.toggle('active');
+                });
+            }
         }
 
         function mostrarPestana(id) {
