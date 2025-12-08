@@ -10,82 +10,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <!-- QR Libraries - Load with multiple fallbacks -->
-    <script>
-        // Load jsQR with fallbacks
-        (function() {
-            const jsQRSources = [
-                'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
-                'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
-            ];
-            
-            function loadScript(src, onSuccess, onError, index = 0) {
-                if (index >= jsQRSources.length) {
-                    onError();
-                    return;
-                }
-                
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = onSuccess;
-                script.onerror = () => {
-                    if (index < jsQRSources.length - 1) {
-                        loadScript(jsQRSources[index + 1], onSuccess, onError, index + 1);
-                    } else {
-                        onError();
-                    }
-                };
-                document.head.appendChild(script);
-            }
-            
-            // Load jsQR
-            if (typeof jsQR === 'undefined') {
-                loadScript(
-                    jsQRSources[0],
-                    () => console.log('jsQR cargado'),
-                    () => console.warn('jsQR no pudo cargarse')
-                );
-            }
-        })();
-        
-        // Load QRCode with fallbacks
-        (function() {
-            const qrCodeSources = [
-                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'
-            ];
-            
-            function loadScript(src, onSuccess, onError, index = 0) {
-                if (index >= qrCodeSources.length) {
-                    onError();
-                    return;
-                }
-                
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = onSuccess;
-                script.onerror = () => {
-                    if (index < qrCodeSources.length - 1) {
-                        loadScript(qrCodeSources[index + 1], onSuccess, onError, index + 1);
-                    } else {
-                        onError();
-                    }
-                };
-                document.head.appendChild(script);
-            }
-            
-            // Load QRCode
-            if (typeof QRCode === 'undefined') {
-                loadScript(
-                    qrCodeSources[0],
-                    () => console.log('QRCode cargado'),
-                    () => console.warn('QRCode no pudo cargarse - la generación de QR no estará disponible')
-                );
-            }
-        })();
-    </script>
+    <!-- QR Scanner Library - Only jsQR for scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -2112,6 +2038,13 @@
                     initAttendanceTabs();
                 }, 100);
             }
+            
+            // If switching to students, refresh the list to show latest attendance
+            if (tab === 'students') {
+                setTimeout(() => {
+                    renderListaEstudiantes();
+                }, 100);
+            }
         }
 
         // Switch Attendance Tab
@@ -2465,6 +2398,7 @@
         }
 
         // Generate Class QR
+        // Generate Class QR using API (no library needed)
         async function generateClassQR() {
             const qrContainer = document.getElementById('class-qr-code');
             if (!qrContainer) return;
@@ -2476,83 +2410,68 @@
                 teacherId: currentUser ? currentUser.uid : 'demo'
             };
 
-            // Try to load QRCode if not available
-            if (typeof QRCode === 'undefined') {
-                showNotification('Cargando librería QR...', 'info');
-                
-                // Try to load from multiple sources
-                const sources = [
-                    'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-                    'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'
-                ];
-                
-                let loaded = false;
-                for (const src of sources) {
-                    try {
-                        await new Promise((resolve, reject) => {
-                            const script = document.createElement('script');
-                            script.src = src;
-                            script.onload = () => {
-                                if (typeof QRCode !== 'undefined') {
-                                    loaded = true;
-                                    resolve();
-                                } else {
-                                    reject();
-                                }
-                            };
-                            script.onerror = reject;
-                            document.head.appendChild(script);
-                            setTimeout(() => reject(), 5000); // Timeout after 5s
-                        });
-                        if (loaded) break;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                
-                if (!loaded || typeof QRCode === 'undefined') {
-                    showNotification('No se pudo cargar la librería QR. Usa el escáner de códigos directamente.', 'warning');
-                    qrContainer.innerHTML = `
-                        <div style="text-align: center; padding: 20px; background: var(--gray-light); border-radius: 12px;">
-                            <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray); margin-bottom: 10px;"></i>
-                            <p style="color: var(--gray);">La generación de QR no está disponible.</p>
-                            <p style="color: var(--gray); font-size: 0.9rem; margin-top: 10px;">Usa el escáner para leer códigos QR de estudiantes.</p>
-                        </div>
-                    `;
-                    return;
-                }
-            }
-
-            // Clear container
-            qrContainer.innerHTML = '';
-
-            // Create canvas element
-            const canvas = document.createElement('canvas');
-            qrContainer.appendChild(canvas);
-
+            const qrText = JSON.stringify(qrData);
+            
             try {
-                QRCode.toCanvas(canvas, JSON.stringify(qrData), {
-                    width: 200,
-                    height: 200,
-                    margin: 1,
-                    color: {
-                        dark: isDarkMode ? '#ffffff' : '#000000',
-                        light: isDarkMode ? '#0a192f' : '#ffffff'
-                    }
-                }, function(error) {
-                    if (error) {
-                        console.error('Error generating QR:', error);
-                        showNotification('Error al generar el código QR: ' + (error.message || 'Error desconocido'), 'error');
-                        qrContainer.innerHTML = '<span style="color: var(--danger);">Error al generar</span>';
-                    } else {
-                        showNotification('Código QR generado exitosamente', 'success');
-                        classQRCode = qrData;
-                    }
-                });
+                showLoading(true);
+                
+                // Clear container and show loading
+                qrContainer.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Generando QR...</div>';
+
+                // Use QR Server API (free, reliable, no API key needed)
+                // Alternative: api.qrserver.com
+                const qrSize = 200;
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(qrText)}`;
+                
+                // Create image element
+                const img = document.createElement('img');
+                img.style.width = qrSize + 'px';
+                img.style.height = qrSize + 'px';
+                img.style.borderRadius = '12px';
+                img.style.border = '2px solid var(--gray-light)';
+                img.alt = 'Código QR de clase';
+                
+                // Load image
+                img.onload = () => {
+                    qrContainer.innerHTML = '';
+                    qrContainer.appendChild(img);
+                    showNotification('Código QR generado exitosamente', 'success');
+                    classQRCode = qrData;
+                    showLoading(false);
+                };
+                
+                img.onerror = () => {
+                    // Fallback to alternative API
+                    const fallbackUrl = `https://chart.googleapis.com/chart?chs=${qrSize}x${qrSize}&cht=qr&chl=${encodeURIComponent(qrText)}`;
+                    img.src = fallbackUrl;
+                    
+                    img.onerror = () => {
+                        // Last fallback - show data as text
+                        qrContainer.innerHTML = `
+                            <div style="text-align: center; padding: 20px; background: var(--gray-light); border-radius: 12px;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning); margin-bottom: 10px;"></i>
+                                <p style="color: var(--gray); margin-bottom: 10px;">No se pudo generar el QR visualmente.</p>
+                                <p style="color: var(--gray); font-size: 0.85rem; word-break: break-all;">${qrText}</p>
+                                <p style="color: var(--gray); font-size: 0.8rem; margin-top: 10px;">Usa el escáner para leer códigos QR de estudiantes directamente.</p>
+                            </div>
+                        `;
+                        showNotification('Error al generar QR visual. Usa el escáner directamente.', 'warning');
+                        showLoading(false);
+                    };
+                };
+                
+                img.src = qrUrl;
+                
             } catch (err) {
                 console.error('Error in QR generation:', err);
                 showNotification('Error al generar el código QR: ' + (err.message || 'Error desconocido'), 'error');
-                qrContainer.innerHTML = '<span style="color: var(--danger);">Error al generar</span>';
+                qrContainer.innerHTML = `
+                    <div style="text-align: center; padding: 20px; background: var(--gray-light); border-radius: 12px;">
+                        <i class="fas fa-times-circle" style="font-size: 2rem; color: var(--danger); margin-bottom: 10px;"></i>
+                        <p style="color: var(--gray);">Error al generar QR</p>
+                    </div>
+                `;
+                showLoading(false);
             }
         }
 
@@ -2648,6 +2567,27 @@
 
         // --- Migrated helper functions from legacy index.html ---
 
+        // Real-time attendance listener
+        let attendanceListener = null;
+        
+        function setupAttendanceListener() {
+            // Remove existing listener if any
+            if (attendanceListener) {
+                const today = new Date().toISOString().split('T')[0];
+                database.ref('attendance/' + today).off('value', attendanceListener);
+            }
+            
+            // Setup new listener for today's attendance
+            const today = new Date().toISOString().split('T')[0];
+            attendanceListener = database.ref('attendance/' + today).on('value', (snapshot) => {
+                // Only update if students tab is active
+                const studentsSection = document.getElementById('students');
+                if (studentsSection && studentsSection.classList.contains('active')) {
+                    renderListaEstudiantes();
+                }
+            });
+        }
+
         async function cargarEstudiantes() {
             try {
                 if (!backendOrigin) {
@@ -2660,7 +2600,10 @@
                     if (!res.ok) throw new Error('Error fetching students');
                     estudiantes = await res.json();
                 }
-                renderListaEstudiantes();
+                // Wait for render to complete (now async)
+                await renderListaEstudiantes();
+                // Setup real-time listener for attendance updates
+                setupAttendanceListener();
                 // update dashboard count if present
                 const totalEl = document.getElementById('total-students');
                 if (totalEl) totalEl.textContent = estudiantes.length || 0;
@@ -2671,7 +2614,7 @@
             }
         }
 
-        function renderListaEstudiantes() {
+        async function renderListaEstudiantes() {
             const tbody = document.getElementById('students-table-body');
             if (!tbody) return;
             tbody.innerHTML = '';
@@ -2679,6 +2622,18 @@
                 tbody.innerHTML = `<tr><td colspan="6">No hay estudiantes registrados.</td></tr>`;
                 return;
             }
+            
+            // Load today's attendance from Firebase
+            const today = new Date().toISOString().split('T')[0];
+            let todayAttendance = {};
+            try {
+                const attendanceRef = database.ref('attendance/' + today);
+                const attendanceSnapshot = await attendanceRef.once('value');
+                todayAttendance = attendanceSnapshot.val() || {};
+            } catch (err) {
+                console.warn('Error loading attendance:', err);
+            }
+            
             // Build filter options
             if (filterCourseSelect) {
                 const selectedCourse = filterCourseSelect.value;
@@ -2710,15 +2665,24 @@
             }
 
             filtered.forEach(s => {
-                const todayPresent = (s.attendance || []).some(a => new Date(a.timestamp || a.date || 0).toDateString() === new Date().toDateString());
-                const statusText = todayPresent ? 'Presente' : 'Ausente';
+                // Check attendance from Firebase (todayAttendance) instead of student.attendance array
+                const studentAttendance = todayAttendance[s.id];
+                const hasAttendance = studentAttendance && studentAttendance.status;
+                const isPresent = hasAttendance && (studentAttendance.status === 'present');
+                const statusText = hasAttendance ? 
+                    (isPresent ? 'Presente' : 
+                     studentAttendance.status === 'late' ? 'Tardío' :
+                     studentAttendance.status === 'excused' ? 'Justificado' : 'Ausente') : 
+                    'Ausente';
+                const statusClass = isPresent ? 'status-present' : 'status-absent';
+                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${s.names || 'Sin nombre'}</td>
                     <td>${s.id || ''}</td>
                     <td>${s.cycle || s.ciclo || ''}</td>
                     <td>${s.course || s.curso || ''}</td>
-                    <td><span class="status-badge ${todayPresent ? 'status-present' : 'status-absent'}">${statusText}</span></td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                     <td>
                         <div class="student-actions">
                             <button class="btn btn-secondary" onclick="editStudent('${s.id || ''}')">Editar</button>
@@ -3098,14 +3062,13 @@
 
         // Wait for critical libraries only (non-blocking)
         async function waitForLibraries(maxRetries = 3, delay = 200) {
-            // Only wait for critical libraries - QRCode is optional
+            // Only wait for critical libraries
             const criticalLibs = {
                 'firebase': () => typeof firebase !== 'undefined'
             };
 
             const optionalLibs = {
-                'jsQR': () => typeof jsQR !== 'undefined',
-                'QRCode': () => typeof QRCode !== 'undefined'
+                'jsQR': () => typeof jsQR !== 'undefined'
             };
 
             // Wait for critical libraries
