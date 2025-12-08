@@ -3,7 +3,14 @@ const { firebaseUtils } = require('../config/firebase');
 // List courses for a specific teacher (teacher-scoped courses)
 exports.listCourses = async (req, res) => {
   try {
-    const { uid } = req.params;
+    // prefer authenticated uid if available
+    const paramUid = req.params.uid;
+    const authUid = req.auth && req.auth.uid;
+    if (authUid && paramUid && authUid !== paramUid) {
+      return res.status(403).json({ message: 'Forbidden: uid mismatch' });
+    }
+    const uid = authUid || paramUid;
+    if (!uid) return res.status(400).json({ message: 'uid is required' });
     const data = await firebaseUtils.readOnce(`teachers/${uid}/courses`);
     if (!data) return res.status(200).json([]);
     // convert object to array
@@ -18,7 +25,13 @@ exports.listCourses = async (req, res) => {
 // List students for a specific teacher
 exports.listStudents = async (req, res) => {
   try {
-    const { uid } = req.params;
+    const paramUid = req.params.uid;
+    const authUid = req.auth && req.auth.uid;
+    if (authUid && paramUid && authUid !== paramUid) {
+      return res.status(403).json({ message: 'Forbidden: uid mismatch' });
+    }
+    const uid = authUid || paramUid;
+    if (!uid) return res.status(400).json({ message: 'uid is required' });
     const data = await firebaseUtils.readOnce(`teachers/${uid}/students`);
     if (!data) return res.status(200).json([]);
     const arr = Object.entries(data).map(([key, val]) => ({ key, ...val }));

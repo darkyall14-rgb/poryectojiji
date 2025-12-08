@@ -49,8 +49,19 @@ let currentYear = new Date().getFullYear();
 async function apiFetch(path, options = {}, retries = 3) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
+            // Attach Firebase ID token if available to authenticate requests
+            const headers = Object.assign({}, options.headers || {}, { 'Content-Type': 'application/json' });
+            try {
+                if (window && window.auth && window.auth.currentUser) {
+                    const idToken = await window.auth.currentUser.getIdToken();
+                    if (idToken) headers['Authorization'] = 'Bearer ' + idToken;
+                }
+            } catch (e) {
+                // token not available yet; continue without Authorization header
+            }
+
             const resp = await fetch(path, {
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 ...options,
             });
             if (!resp.ok) {

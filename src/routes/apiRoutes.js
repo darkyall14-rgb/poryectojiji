@@ -7,6 +7,7 @@ const attendanceController = require("../controllers/attendanceController");
 const sessionController = require("../controllers/sessionController");
 const enrollmentController = require("../controllers/enrollmentController");
 const teacherController = require("../controllers/teacherController");
+const { verifyFirebaseToken } = require('../middleware/authMiddleware');
 
 // ============ HEALTH CHECK ============
 router.get("/health", (req, res) => {
@@ -71,8 +72,9 @@ router.get("/config/firebase", (req, res) => {
 router.post("/enrollments", enrollmentController.createEnrollment);
 
 // ============ TEACHER-SCOPED DATA ============
-router.get('/teachers/:uid/courses', teacherController.listCourses);
-router.get('/teachers/:uid/students', teacherController.listStudents);
+// Protected teacher-scoped endpoints: require Firebase ID token
+router.get('/teachers/:uid/courses', verifyFirebaseToken, teacherController.listCourses);
+router.get('/teachers/:uid/students', verifyFirebaseToken, teacherController.listStudents);
 
 module.exports = router;
 
