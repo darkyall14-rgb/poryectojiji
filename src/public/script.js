@@ -90,15 +90,21 @@ function initializeApp() {
         const genBtn = document.getElementById('generateQrBtn');
         if (genBtn) genBtn.style.display = user ? '' : 'none';
 
+        const hasDashboard = !!document.getElementById('dashboardPage');
+
         if (user) {
             currentUser = user;
-            showDashboard();
-            loadUserData();
-            // Iniciar listener de actualizaciones de asistencia
-            watchAttendanceUpdates();
+            if (hasDashboard) {
+                showDashboard();
+                loadUserData();
+                // Iniciar listener de actualizaciones de asistencia
+                watchAttendanceUpdates();
+            }
         } else {
             currentUser = null;
-            showLogin();
+            // Only attempt to show login if the login page exists
+            const loginPage = document.getElementById('loginPage');
+            if (loginPage) showLogin();
         }
     });
 }
@@ -106,20 +112,24 @@ function initializeApp() {
 // Configurar event listeners
 function setupEventListeners() {
     // Login form
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
-    
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
     // Register form
-    document.getElementById('registerForm').addEventListener('submit', handleRegister);
-    
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) registerForm.addEventListener('submit', handleRegister);
+
     // Add student form
-    document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
-    
+    const addStudentForm = document.getElementById('addStudentForm');
+    if (addStudentForm) addStudentForm.addEventListener('submit', handleAddStudent);
+
     // Add course form
-    document.getElementById('addCourseForm').addEventListener('submit', handleAddCourse);
-    
+    const addCourseForm = document.getElementById('addCourseForm');
+    if (addCourseForm) addCourseForm.addEventListener('submit', handleAddCourse);
+
     // Close modals when clicking outside
     window.addEventListener('click', function(event) {
-        if (event.target.classList.contains('modal')) {
+        if (event.target && event.target.classList && event.target.classList.contains('modal')) {
             closeAllModals();
         }
     });
@@ -254,19 +264,21 @@ async function loadUserData() {
         const teacherSnapshot = await database.ref('teachers/' + currentUser.uid).once('value');
         if (teacherSnapshot.exists()) {
             const teacherData = teacherSnapshot.val();
-            document.getElementById('userName').textContent = teacherData.fullName;
-            document.getElementById('userEmail').textContent = teacherData.email;
+            const userNameEl = document.getElementById('userName');
+            if (userNameEl) userNameEl.textContent = teacherData.fullName;
+            const userEmailEl = document.getElementById('userEmail');
+            if (userEmailEl) userEmailEl.textContent = teacherData.email;
         }
         
         // Cargar estudiantes
         await loadStudents();
-        
+
         // Cargar cursos
         await loadCourses();
-        
+
         // Cargar registros de asistencia
         await loadAttendanceRecords();
-        
+
         // Actualizar estadísticas
         updateStats();
         
@@ -801,9 +813,24 @@ function renderCourses() {
 
 // Actualizar select de cursos
 function updateCourseSelect() {
-    const select = document.getElementById('courseSelect');
+    let select = document.getElementById('courseSelect');
+
+    // Si no existe el select, intentar crearlo dentro del contenedor de controles de asistencia
+    if (!select) {
+        const controls = document.querySelector('.attendance-controls');
+        if (controls) {
+            select = document.createElement('select');
+            select.id = 'courseSelect';
+            select.className = 'select-input';
+            controls.insertBefore(select, controls.firstChild);
+        } else {
+            // No hay lugar donde insertar el select: salir sin hacer nada
+            return;
+        }
+    }
+
     select.innerHTML = '<option value="">Seleccionar Unidad Didáctica</option>';
-    
+
     courses.forEach(course => {
         const option = document.createElement('option');
         option.value = course.id;
@@ -868,24 +895,29 @@ function getAttendanceForDate(date) {
 
 // Actualizar estadísticas
 function updateStats() {
-    document.getElementById('totalStudents').textContent = students.length;
-    document.getElementById('totalCourses').textContent = courses.length;
-    
+    const totalStudentsEl = document.getElementById('totalStudents');
+    if (totalStudentsEl) totalStudentsEl.textContent = students.length;
+
+    const totalCoursesEl = document.getElementById('totalCourses');
+    if (totalCoursesEl) totalCoursesEl.textContent = courses.length;
+
     // Calcular asistencia de hoy
     const today = new Date().toISOString().split('T')[0];
     const todayAttendance = attendanceRecords.find(record => record.date === today);
-    const todayPercentage = todayAttendance ? Math.round((todayAttendance.presentCount / students.length) * 100) : 0;
-    document.getElementById('todayAttendance').textContent = todayPercentage + '%';
-    
+    const todayPercentage = todayAttendance ? Math.round((todayAttendance.presentCount / (students.length || 1)) * 100) : 0;
+    const todayAttendanceEl = document.getElementById('todayAttendance');
+    if (todayAttendanceEl) todayAttendanceEl.textContent = todayPercentage + '%';
+
     // Calcular promedio general
     const totalRecords = attendanceRecords.length;
+    const avgAttendanceEl = document.getElementById('avgAttendance');
     if (totalRecords > 0) {
-        const totalPresent = attendanceRecords.reduce((sum, record) => sum + record.presentCount, 0);
-        const totalPossible = totalRecords * students.length;
+        const totalPresent = attendanceRecords.reduce((sum, record) => sum + (record.presentCount || 0), 0);
+        const totalPossible = totalRecords * (students.length || 1);
         const avgPercentage = Math.round((totalPresent / totalPossible) * 100);
-        document.getElementById('avgAttendance').textContent = avgPercentage + '%';
+        if (avgAttendanceEl) avgAttendanceEl.textContent = avgPercentage + '%';
     } else {
-        document.getElementById('avgAttendance').textContent = '0%';
+        if (avgAttendanceEl) avgAttendanceEl.textContent = '0%';
     }
 }
 
@@ -904,8 +936,14 @@ function showSection(sectionName) {
     // Mostrar la sección seleccionada
     document.getElementById(sectionName + 'Section').classList.add('active');
     
-    // Activar el elemento de navegación correspondiente
-    event.target.classList.add('active');
+    // Activar el elemento de navegación correspondiente si el event está disponible
+    try {
+        if (typeof event !== 'undefined' && event && event.target && event.target.classList) {
+            event.target.classList.add('active');
+        }
+    } catch (e) {
+        // no-op
+    }
     
     // Actualizar título de la página
     const titles = {
@@ -916,8 +954,10 @@ function showSection(sectionName) {
         'reports': 'Reportes y Estadísticas'
     };
     
-    document.getElementById('pageTitle').textContent = titles[sectionName];
-    document.getElementById('pageSubtitle').textContent = getSectionSubtitle(sectionName);
+    const pageTitleEl = document.getElementById('pageTitle');
+    if (pageTitleEl) pageTitleEl.textContent = titles[sectionName];
+    const pageSubtitleEl = document.getElementById('pageSubtitle');
+    if (pageSubtitleEl) pageSubtitleEl.textContent = getSectionSubtitle(sectionName);
 }
 
 // Obtener subtítulo de la sección
@@ -1166,7 +1206,8 @@ async function deleteCourse(courseId) {
 
 // Funciones de asistencia
 function markAttendance() {
-    const courseId = document.getElementById('courseSelect').value;
+    const selectEl = document.getElementById('courseSelect');
+    const courseId = selectEl ? selectEl.value : '';
     if (!courseId) {
         showNotification('Por favor selecciona una unidad didáctica', 'warning');
         return;
@@ -1242,7 +1283,8 @@ async function handleScannedPayload(payload) {
     if (!qrScannerEnabled) return;
     qrScannerEnabled = false; // bloquear temporalmente
 
-    document.getElementById('scanResult').textContent = 'Código detectado: ' + payload;
+    const scanResultEl = document.getElementById('scanResult');
+    if (scanResultEl) scanResultEl.textContent = 'Código detectado: ' + payload;
 
     // Intentar parsear JSON
     let data = null;
@@ -1283,7 +1325,9 @@ async function handleScannedPayload(payload) {
 
         try {
             // register attendance
-            const courseId = payloadCourseId || document.getElementById('courseSelect').value || 'general';
+            const selectEl = document.getElementById('courseSelect');
+            const selectedCourse = selectEl ? selectEl.value : '';
+            const courseId = payloadCourseId || selectedCourse || 'general';
             try {
                 await apiFetch('/api/attendance', { method: 'POST', body: JSON.stringify({ courseId, studentDni: data.dni, studentName: data.name, timestamp: Date.now(), date: dateStr }) });
             } catch (_) {
@@ -1298,13 +1342,13 @@ async function handleScannedPayload(payload) {
             }
 
             showNotification('Asistencia registrada para ' + data.name, 'success');
-            document.getElementById('scanResult').textContent = 'Asistencia registrada para ' + data.name;
+            if (scanResultEl) scanResultEl.textContent = 'Asistencia registrada para ' + data.name;
         } catch (attErr) {
             showNotification('Error registrando asistencia: ' + (attErr.message || attErr), 'error');
         }
     } else {
         showNotification('QR no reconocido', 'warning');
-        document.getElementById('scanResult').textContent = 'QR no reconocido: ' + payload;
+        if (scanResultEl) scanResultEl.textContent = 'QR no reconocido: ' + payload;
     }
 
     // Después de 2 segundos, permitir nuevos escaneos
@@ -1408,7 +1452,9 @@ notificationStyles.textContent = `
 document.head.appendChild(notificationStyles);
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Asegurarse de que el DOM esté completamente cargado antes de ejecutar el script
-    loadUserData();
-    loadCourses();
+    // Ejecutar cargas sólo si estamos en el dashboard (evitar ejecutar en páginas públicas como /scan)
+    if (document.getElementById('dashboardPage')) {
+        loadUserData();
+        loadCourses();
+    }
 });
