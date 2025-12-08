@@ -1369,15 +1369,21 @@
                                 </h3>
                                 <form id="manual-attendance-form">
                                     <div class="form-group">
-                                        <label class="form-label">Estudiante</label>
-                                        <select id="manual-student" class="form-control" required>
-                                            <option value="">Seleccionar estudiante</option>
+                                        <label class="form-label">Ciclo</label>
+                                        <select id="manual-cycle" class="form-control" required>
+                                            <option value="">Seleccionar ciclo</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Curso</label>
                                         <select id="manual-course" class="form-control" required>
-                                            <option value="">Seleccionar curso</option>
+                                            <option value="">Primero selecciona un ciclo</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Estudiante</label>
+                                        <select id="manual-student" class="form-control" required>
+                                            <option value="">Seleccionar estudiante</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
@@ -1409,9 +1415,15 @@
                                 </h3>
                                 <form id="bulk-attendance-form">
                                     <div class="form-group">
+                                        <label class="form-label">Ciclo</label>
+                                        <select id="bulk-cycle" class="form-control" required>
+                                            <option value="">Seleccionar ciclo</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
                                         <label class="form-label">Curso</label>
                                         <select id="bulk-course" class="form-control" required>
-                                            <option value="">Seleccionar curso</option>
+                                            <option value="">Primero selecciona un ciclo</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
@@ -1420,7 +1432,10 @@
                                     </div>
                                     
                                     <div id="bulk-students-list" style="margin-top: 25px;">
-                                        <!-- Students list will be loaded here -->
+                                        <div class="empty-state">
+                                            <i class="fas fa-users"></i>
+                                            <p>Selecciona un curso para ver los estudiantes</p>
+                                        </div>
                                     </div>
                                     
                                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 25px;">
@@ -2105,14 +2120,44 @@
 
                 const student = studentSnapshot.val();
                 const today = new Date().toISOString().split('T')[0];
+                const studentName = `${student.names || ''} ${student.lastnames || ''}`.trim() || 'Estudiante';
+                const initial = (student.names || student.lastnames || 'E').charAt(0).toUpperCase();
+
+                // Check if already registered today
+                const existingRef = database.ref('attendance/' + today + '/' + studentData.studentId);
+                const existingSnapshot = await existingRef.once('value');
+                
+                if (existingSnapshot.exists()) {
+                    showNotification('Este estudiante ya tiene asistencia registrada hoy', 'warning');
+                    const scanResult = document.getElementById('scan-result');
+                    scanResult.style.display = 'block';
+                    scanResult.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--warning); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                ${initial}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
+                                <div style="color: var(--gray); font-size: 0.9rem;">${student.cycle || ''} - ${student.course || student.curso || ''}</div>
+                            </div>
+                        </div>
+                        <div style="background: rgba(248, 150, 30, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--warning);">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
+                                <span style="font-weight: 600;">Ya registrado anteriormente</span>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
 
                 // Record attendance
                 const attendanceRef = database.ref('attendance/' + today + '/' + studentData.studentId);
                 await attendanceRef.set({
                     studentId: studentData.studentId,
-                    studentName: student.names + ' ' + student.lastnames,
-                    course: student.course,
-                    cycle: student.cycle,
+                    studentName: studentName,
+                    course: student.course || student.curso || '',
+                    cycle: student.cycle || student.ciclo || '',
                     status: 'present',
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
                     method: 'qr'
@@ -2124,11 +2169,11 @@
                 scanResult.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                         <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                            ${student.names.charAt(0)}
+                            ${initial}
                         </div>
                         <div>
-                            <div style="font-weight: 600; font-size: 1.1rem;">${student.names} ${student.lastnames}</div>
-                            <div style="color: var(--gray); font-size: 0.9rem;">${student.cycle} - ${student.course}</div>
+                            <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
+                            <div style="color: var(--gray); font-size: 0.9rem;">${student.cycle || student.ciclo || ''} - ${student.course || student.curso || ''}</div>
                         </div>
                     </div>
                     <div style="background: rgba(76, 201, 240, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
@@ -2144,10 +2189,11 @@
 
                 showNotification('Asistencia registrada exitosamente', 'success');
                 loadDashboardData();
+                await cargarEstudiantes();
 
             } catch (error) {
                 console.error('Error handling QR scan:', error);
-                showNotification('Error al procesar el código QR', 'error');
+                showNotification('Error al procesar el código QR: ' + (error.message || 'Error desconocido'), 'error');
             } finally {
                 showLoading(false);
             }
@@ -2381,22 +2427,113 @@
 
         async function marcarAsistenciaManual(e) {
             if (e && e.preventDefault) e.preventDefault();
-            // Only allow when authenticated as teacher (currentUser) or allow if you want demo
-            if (!currentUser) return showNotification('Inicia sesión como docente para registrar manualmente', 'error');
             const studentId = document.getElementById('manual-student').value;
             const status = document.getElementById('manual-status').value;
             const course = document.getElementById('manual-course').value || '';
+            const notes = document.getElementById('manual-notes').value || '';
+            
             if (!studentId) return showNotification('Selecciona un estudiante', 'error');
+            if (!course) return showNotification('Selecciona un curso', 'error');
+            
             try {
+                showLoading(true);
                 const today = new Date().toISOString().split('T')[0];
+                const student = estudiantes.find(s => s.id === studentId);
                 const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
-                await attendanceRef.set({ studentId, studentName: (estudiantes.find(s=>s.id===studentId)||{}).names || '', course, status, timestamp: firebase.database.ServerValue.TIMESTAMP, method: 'manual' });
-                showNotification('Asistencia registrada (manual)', 'success');
+                await attendanceRef.set({ 
+                    studentId, 
+                    studentName: `${student?.names || ''} ${student?.lastnames || ''}`.trim(),
+                    course, 
+                    status, 
+                    notes,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP, 
+                    method: 'manual' 
+                });
+                showNotification('Asistencia registrada exitosamente', 'success');
+                document.getElementById('manual-attendance-form').reset();
+                document.getElementById('manual-cycle').value = '';
+                document.getElementById('manual-course').innerHTML = '<option value="">Primero selecciona un ciclo</option>';
+                document.getElementById('manual-student').innerHTML = '<option value="">Seleccionar estudiante</option>';
                 await cargarEstudiantes();
                 loadDashboardData();
             } catch (err) {
                 console.error('marcarAsistenciaManual', err);
                 showNotification('Error registrando asistencia manual', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function marcarAsistenciaPorGrupo(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            const ciclo = document.getElementById('bulk-cycle').value;
+            const curso = document.getElementById('bulk-course').value;
+            const fecha = document.getElementById('bulk-date').value;
+            
+            if (!ciclo || !curso || !fecha) {
+                return showNotification('Completa todos los campos', 'error');
+            }
+
+            const statusSelects = document.querySelectorAll('#bulk-students-list select[data-student-id]');
+            if (statusSelects.length === 0) {
+                return showNotification('No hay estudiantes para registrar', 'error');
+            }
+
+            try {
+                showLoading(true);
+                const today = fecha || new Date().toISOString().split('T')[0];
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (const select of statusSelects) {
+                    const studentId = select.getAttribute('data-student-id');
+                    const status = select.value;
+                    if (!studentId || !status) continue;
+
+                    try {
+                        const student = estudiantes.find(s => s.id === studentId);
+                        const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
+                        await attendanceRef.set({
+                            studentId,
+                            studentName: `${student?.names || ''} ${student?.lastnames || ''}`.trim(),
+                            course: curso,
+                            cycle: ciclo,
+                            status,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP,
+                            method: 'bulk'
+                        });
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Error registrando asistencia para ${studentId}:`, err);
+                        errorCount++;
+                    }
+                }
+
+                if (successCount > 0) {
+                    showNotification(`Asistencia registrada para ${successCount} estudiante(s)`, 'success');
+                    if (errorCount > 0) {
+                        showNotification(`${errorCount} error(es) al registrar`, 'warning');
+                    }
+                    document.getElementById('bulk-attendance-form').reset();
+                    document.getElementById('bulk-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('bulk-cycle').value = '';
+                    document.getElementById('bulk-course').innerHTML = '<option value="">Primero selecciona un ciclo</option>';
+                    document.getElementById('bulk-students-list').innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>Selecciona un curso para ver los estudiantes</p>
+                        </div>
+                    `;
+                    await cargarEstudiantes();
+                    loadDashboardData();
+                } else {
+                    showNotification('No se pudo registrar ninguna asistencia', 'error');
+                }
+            } catch (err) {
+                console.error('marcarAsistenciaPorGrupo', err);
+                showNotification('Error registrando asistencia por grupo', 'error');
+            } finally {
+                showLoading(false);
             }
         }
 
@@ -2424,12 +2561,15 @@
         }
 
         function poblarSelectCiclos() {
-            const selects = [studentCycleSelect, filterCycleSelect];
+            const selects = [studentCycleSelect, filterCycleSelect, document.getElementById('manual-cycle'), document.getElementById('bulk-cycle')];
             selects.forEach(sel => {
                 if (!sel) return;
                 const current = sel.value;
                 const isStudentSelect = sel.id === 'student-cycle';
-                sel.innerHTML = isStudentSelect ? '<option value="">Selecciona un ciclo</option>' : '<option value="">Todos los ciclos</option>';
+                const isManualOrBulk = sel.id === 'manual-cycle' || sel.id === 'bulk-cycle';
+                sel.innerHTML = isStudentSelect ? '<option value="">Selecciona un ciclo</option>' : 
+                               isManualOrBulk ? '<option value="">Seleccionar ciclo</option>' : 
+                               '<option value="">Todos los ciclos</option>';
                 Object.entries(ciclosData).forEach(([key, data]) => {
                     const opt = document.createElement('option');
                     opt.value = data.nombre || key;
@@ -2464,6 +2604,91 @@
             cargarCursosParaSelect(ciclo, bulkCourse);
         }
 
+        async function cargarEstudiantesPorCurso(ciclo, curso) {
+            if (!estudiantes || estudiantes.length === 0) await cargarEstudiantes();
+            const filtered = estudiantes.filter(s => {
+                const matchCiclo = !ciclo || (s.cycle || s.ciclo) === ciclo;
+                const matchCurso = !curso || (s.course || s.curso) === curso;
+                return matchCiclo && matchCurso;
+            });
+            return filtered;
+        }
+
+        async function cargarEstudiantesParaManual() {
+            const ciclo = document.getElementById('manual-cycle')?.value;
+            const curso = document.getElementById('manual-course')?.value;
+            const sel = document.getElementById('manual-student');
+            if (!sel) return;
+            
+            sel.innerHTML = '<option value="">Seleccionar estudiante</option>';
+            if (!ciclo || !curso) {
+                sel.innerHTML = '<option value="">Primero selecciona ciclo y curso</option>';
+                return;
+            }
+
+            const filtered = await cargarEstudiantesPorCurso(ciclo, curso);
+            filtered.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = `${s.names || ''} ${s.lastnames || ''} - ${s.cycle || s.ciclo || ''}`;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function cargarEstudiantesParaGrupo() {
+            const ciclo = document.getElementById('bulk-cycle')?.value;
+            const curso = document.getElementById('bulk-course')?.value;
+            const container = document.getElementById('bulk-students-list');
+            if (!container) return;
+
+            if (!ciclo || !curso) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>Selecciona un ciclo y curso para ver los estudiantes</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const filtered = await cargarEstudiantesPorCurso(ciclo, curso);
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>No hay estudiantes en este curso</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div style="display: grid; gap: 12px;">';
+            filtered.forEach(s => {
+                const studentId = s.id;
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--gray-light); border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                ${(s.names || '').charAt(0) || 'E'}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">${s.names || ''} ${s.lastnames || ''}</div>
+                                <div style="font-size: 0.85rem; color: var(--gray);">${s.cycle || s.ciclo || ''}</div>
+                            </div>
+                        </div>
+                        <select class="form-control" style="width: 150px; min-width: 150px;" data-student-id="${studentId}" name="bulk-status-${studentId}">
+                            <option value="present">Presente</option>
+                            <option value="absent" selected>Ausente</option>
+                            <option value="late">Tardío</option>
+                            <option value="excused">Justificado</option>
+                        </select>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
         function iniciarSSE() {
             if (!backendOrigin) return;
             try {
@@ -2477,10 +2702,70 @@
         function setupAdditionalEventListeners() {
             const manualForm = document.getElementById('manual-attendance-form');
             if (manualForm) manualForm.addEventListener('submit', marcarAsistenciaManual);
+            
+            const bulkForm = document.getElementById('bulk-attendance-form');
+            if (bulkForm) bulkForm.addEventListener('submit', marcarAsistenciaPorGrupo);
+            
             const filterCycle = document.getElementById('filter-cycle');
             if (filterCycle) filterCycle.addEventListener('change', (e)=> {
                 cargarCursosPorCiclo(e.target.value);
             });
+
+            // Manual attendance listeners
+            const manualCycle = document.getElementById('manual-cycle');
+            if (manualCycle) {
+                manualCycle.addEventListener('change', async (e) => {
+                    await cargarCiclosDesdeDB();
+                    cargarCursosParaSelect(e.target.value, document.getElementById('manual-course'));
+                    document.getElementById('manual-student').innerHTML = '<option value="">Selecciona curso primero</option>';
+                });
+            }
+
+            const manualCourse = document.getElementById('manual-course');
+            if (manualCourse) {
+                manualCourse.addEventListener('change', () => {
+                    cargarEstudiantesParaManual();
+                });
+            }
+
+            // Bulk attendance listeners
+            const bulkCycle = document.getElementById('bulk-cycle');
+            if (bulkCycle) {
+                bulkCycle.addEventListener('change', async (e) => {
+                    await cargarCiclosDesdeDB();
+                    cargarCursosParaSelect(e.target.value, document.getElementById('bulk-course'));
+                    document.getElementById('bulk-students-list').innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>Selecciona un curso para ver los estudiantes</p>
+                        </div>
+                    `;
+                });
+            }
+
+            const bulkCourse = document.getElementById('bulk-course');
+            if (bulkCourse) {
+                bulkCourse.addEventListener('change', () => {
+                    cargarEstudiantesParaGrupo();
+                });
+            }
+
+            // Set default date for bulk attendance
+            const bulkDate = document.getElementById('bulk-date');
+            if (bulkDate && !bulkDate.value) {
+                bulkDate.value = new Date().toISOString().split('T')[0];
+            }
+
+            // Load cycles when attendance tab is opened
+            const attendanceTab = document.getElementById('attendance');
+            if (attendanceTab) {
+                const observer = new MutationObserver(() => {
+                    if (attendanceTab.classList.contains('active')) {
+                        cargarCiclosDesdeDB();
+                    }
+                });
+                observer.observe(attendanceTab, { attributes: true, attributeFilter: ['class'] });
+            }
         }
 
         // Ensure initial data is loaded after auth
