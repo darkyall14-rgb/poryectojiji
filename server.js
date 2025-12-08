@@ -20,6 +20,21 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "src", "public")));
 
 // --- Inicialización de Firebase Admin (obligatorio) ---
+// Prefer env vars, but allow local file `serviceAccountKey.json` for development convenience
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const localKeyPath = path.join(__dirname, 'serviceAccountKey.json');
+  try {
+    if (require('fs').existsSync(localKeyPath)) {
+      // Leer archivo local y establecer la variable de entorno temporalmente
+      const raw = require('fs').readFileSync(localKeyPath, 'utf8');
+      process.env.FIREBASE_SERVICE_ACCOUNT = raw;
+      console.log('Usando credenciales desde serviceAccountKey.json');
+    }
+  } catch (e) {
+    // noop
+  }
+}
+
 if (!process.env.FIREBASE_SERVICE_ACCOUNT || !process.env.FIREBASE_DATABASE_URL) {
   console.error('ERROR: Debes establecer las variables de entorno FIREBASE_SERVICE_ACCOUNT y FIREBASE_DATABASE_URL con las credenciales de Firebase.');
   console.error('Ejemplo en Render: agrega FIREBASE_SERVICE_ACCOUNT (JSON) y FIREBASE_DATABASE_URL. No subas credenciales al repositorio.');
@@ -27,7 +42,18 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT || !process.env.FIREBASE_DATABASE_URL)
 }
 
 try {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  let serviceAccount = null;
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (e) {
+    // Puede venir codificado en base64 (útil para algunos paneles que no preservan saltos de línea)
+    try {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    } catch (err2) {
+      throw new Error('No se pudo parsear FIREBASE_SERVICE_ACCOUNT como JSON ni como base64');
+    }
+  }
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: process.env.FIREBASE_DATABASE_URL
@@ -241,6 +267,15 @@ app.use((err, req, res, next) => {
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.originalUrl });
+});
+
+// Servir frontend principal en la raíz (fallback)
+app.get('/', (req, res) => {
+  try {
+    res.sendFile(path.join(__dirname, 'src', 'views', 'index.html'));
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo enviar index.html', message: err.message });
+  }
 });
 
 // Verificamos conexión a Firebase antes de arrancar el servidor
