@@ -264,11 +264,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
-});
-
 // Servir frontend principal en la raíz (fallback)
 app.get('/', (req, res) => {
   try {
@@ -276,6 +271,11 @@ app.get('/', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'No se pudo enviar index.html', message: err.message });
   }
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
 });
 
 // Verificamos conexión a Firebase antes de arrancar el servidor
