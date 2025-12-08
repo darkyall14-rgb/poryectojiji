@@ -263,6 +263,17 @@
             transform: translateY(-2px);
         }
 
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: 0 4px 15px rgba(249, 65, 68, 0.25);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(249, 65, 68, 0.35);
+        }
+
         .btn-icon {
             width: 40px;
             height: 40px;
@@ -648,6 +659,24 @@
             background: var(--dark-light);
         }
 
+        .modal-description {
+            color: var(--gray);
+            margin-top: 12px;
+            line-height: 1.6;
+        }
+
+        body.dark-mode .modal-description {
+            color: #cbd5e1;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
         @keyframes modalSlideIn {
             from {
                 opacity: 0;
@@ -999,6 +1028,24 @@
                     </a>
                 </p>
             </form>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logout-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Cerrar sesión</h3>
+                <button class="modal-close" id="logout-close">×</button>
+            </div>
+            <p class="modal-description">¿Deseas cerrar sesión?</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="logout-cancel">Cancelar</button>
+                <button class="btn btn-danger" id="logout-confirm">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Cerrar sesión
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1471,6 +1518,11 @@
         const userAvatar = document.getElementById('user-avatar');
         const userName = document.getElementById('user-name');
         const userRole = document.getElementById('user-role');
+        const logoutModal = document.getElementById('logout-modal');
+        const logoutConfirmBtn = document.getElementById('logout-confirm');
+        const logoutCancelBtn = document.getElementById('logout-cancel');
+        const logoutCloseBtn = document.getElementById('logout-close');
+        const userMenu = document.getElementById('user-menu');
 
         // Initialize App
         function initApp() {
@@ -1500,6 +1552,9 @@
         // Show Entry Modal
         function showEntryModal() {
             entryModal.classList.add('active');
+            loginModal.classList.remove('active');
+            registerModal.classList.remove('active');
+            logoutModal.classList.remove('active');
             appContent.style.display = 'none';
         }
 
@@ -1509,6 +1564,40 @@
             loginModal.classList.remove('active');
             registerModal.classList.remove('active');
             appContent.style.display = 'block';
+        }
+
+        function showLogoutModal() {
+            logoutModal.classList.add('active');
+        }
+
+        function hideLogoutModal() {
+            logoutModal.classList.remove('active');
+        }
+
+        function resetUserHeader() {
+            userName.textContent = 'Docente';
+            userAvatar.textContent = 'D';
+            userRole.textContent = 'Profesor';
+        }
+
+        async function handleLogout() {
+            try {
+                showLoading(true);
+                if (auth.currentUser) {
+                    await auth.signOut();
+                }
+
+                currentUser = null;
+                resetUserHeader();
+                switchTab('dashboard');
+                showEntryModal();
+                showNotification('Sesión cerrada correctamente', 'success');
+                hideLogoutModal();
+            } catch (error) {
+                showNotification(error.message || 'Error al cerrar sesión', 'error');
+            } finally {
+                showLoading(false);
+            }
         }
 
         // Setup Event Listeners
@@ -1584,9 +1673,13 @@
             document.getElementById('generate-class-qr').addEventListener('click', generateClassQR);
 
             // User Menu
-            document.getElementById('user-menu').addEventListener('click', () => {
-                if (confirm('¿Deseas cerrar sesión?')) {
-                    auth.signOut();
+            userMenu.addEventListener('click', showLogoutModal);
+            logoutConfirmBtn.addEventListener('click', handleLogout);
+            logoutCancelBtn.addEventListener('click', hideLogoutModal);
+            logoutCloseBtn.addEventListener('click', hideLogoutModal);
+            logoutModal.addEventListener('click', (e) => {
+                if (e.target === logoutModal) {
+                    hideLogoutModal();
                 }
             });
 
