@@ -1493,6 +1493,8 @@
             });
 
             setupEventListeners();
+            // Call extra listeners that were wired separately
+            if (typeof setupAdditionalEventListeners === 'function') setupAdditionalEventListeners();
         }
 
         // Show Entry Modal
@@ -2147,10 +2149,8 @@
             } catch(e) { console.warn('SSE no soportado', e); }
         }
 
-        // Wire additional listeners inside initApp
-        const originalSetupEventListeners = setupEventListeners;
-        function setupEventListeners() {
-            originalSetupEventListeners();
+        // Additional listeners wired separately to avoid redefining setupEventListeners
+        function setupAdditionalEventListeners() {
             const manualForm = document.getElementById('manual-attendance-form');
             if (manualForm) manualForm.addEventListener('submit', marcarAsistenciaManual);
             const searchInput = document.getElementById('search-students');
