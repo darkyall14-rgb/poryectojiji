@@ -643,6 +643,17 @@
             animation: fadeIn 0.3s ease;
         }
 
+        /* Specific styles for attendance tabs container */
+        #attendance .tabs-container .tab-content {
+            padding: 30px;
+            display: none;
+        }
+
+        #attendance .tabs-container .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -1816,15 +1827,21 @@
             if (filterCycleSelect) filterCycleSelect.addEventListener('change', renderListaEstudiantes);
 
             // Tabs in attendance section
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tabId = btn.getAttribute('data-tab');
-                    switchAttendanceTab(tabId);
+            const attendanceSection = document.getElementById('attendance');
+            if (attendanceSection) {
+                attendanceSection.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tabId = btn.getAttribute('data-tab');
+                        switchAttendanceTab(tabId);
+                    });
                 });
-            });
+            }
 
             // Initialize QR Scanner
             initQRScanner();
+            
+            // Initialize attendance tabs
+            initAttendanceTabs();
         }
 
         // Toggle Theme
@@ -2004,8 +2021,8 @@
                 }
             });
 
-            // Update content
-            document.querySelectorAll('.tab-content').forEach(content => {
+            // Update content - only main section tabs, not inner tabs
+            document.querySelectorAll('section.tab-content').forEach(content => {
                 content.classList.remove('active');
                 if (content.id === tab) {
                     content.classList.add('active');
@@ -2013,25 +2030,54 @@
             });
 
             currentTab = tab;
+
+            // If switching to attendance, initialize attendance tabs
+            if (tab === 'attendance') {
+                setTimeout(() => {
+                    initAttendanceTabs();
+                }, 100);
+            }
         }
 
         // Switch Attendance Tab
         function switchAttendanceTab(tabId) {
-            // Update tab buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => {
+            // Get the attendance section container
+            const attendanceSection = document.getElementById('attendance');
+            if (!attendanceSection) return;
+
+            // Update tab buttons within attendance section only
+            attendanceSection.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('active');
                 if (btn.getAttribute('data-tab') === tabId) {
                     btn.classList.add('active');
                 }
             });
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
+            // Update tab content within attendance section only
+            attendanceSection.querySelectorAll('.tabs-container .tab-content').forEach(content => {
                 content.classList.remove('active');
+                content.style.display = 'none';
                 if (content.id === `${tabId}-tab`) {
                     content.classList.add('active');
+                    content.style.display = 'block';
                 }
             });
+        }
+
+        // Initialize attendance tabs
+        function initAttendanceTabs() {
+            const attendanceSection = document.getElementById('attendance');
+            if (!attendanceSection) return;
+
+            // Ensure first tab is active by default
+            const firstTab = attendanceSection.querySelector('.tab-btn[data-tab="scan"]');
+            const firstTabContent = attendanceSection.querySelector('#scan-tab');
+            
+            if (firstTab && firstTabContent) {
+                firstTab.classList.add('active');
+                firstTabContent.classList.add('active');
+                firstTabContent.style.display = 'block';
+            }
         }
 
         // Initialize QR Scanner
