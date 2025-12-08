@@ -1067,11 +1067,15 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ciclo</label>
-                    <input type="text" id="student-cycle" class="form-control" placeholder="Ej: Ciclo I" required>
+                    <select id="student-cycle" class="form-control" required>
+                        <option value="">Selecciona un ciclo</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Curso</label>
-                    <input type="text" id="student-course" class="form-control" placeholder="Ej: Matemática" required>
+                    <select id="student-course" class="form-control" required>
+                        <option value="">Selecciona un curso</option>
+                    </select>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="student-cancel">Cancelar</button>
@@ -1543,6 +1547,7 @@
         let qrScanner = null;
         let classQRCode = null;
         let editingStudentId = null;
+        let ciclosData = {};
 
         // DOM Elements
         const entryModal = document.getElementById('entry-modal');
@@ -1564,6 +1569,8 @@
         const studentForm = document.getElementById('student-form');
         const studentCloseBtn = document.getElementById('student-close');
         const studentCancelBtn = document.getElementById('student-cancel');
+        const studentCycleSelect = document.getElementById('student-cycle');
+        const studentCourseSelect = document.getElementById('student-course');
         const addStudentBtn = document.getElementById('add-student-btn');
         const searchStudentsInput = document.getElementById('search-students');
         const filterCourseSelect = document.getElementById('filter-course');
@@ -1626,14 +1633,22 @@
             studentModalTitle.textContent = student ? 'Editar Estudiante' : 'Nuevo Estudiante';
             document.getElementById('student-names').value = student?.names || '';
             document.getElementById('student-lastnames').value = student?.lastnames || '';
-            document.getElementById('student-cycle').value = student?.cycle || student?.ciclo || '';
-            document.getElementById('student-course').value = student?.course || student?.curso || '';
+            const cicloValue = student?.cycle || student?.ciclo || '';
+            const cursoValue = student?.course || student?.curso || '';
+            cargarCiclosDesdeDB().then(() => {
+                if (studentCycleSelect) {
+                    studentCycleSelect.value = cicloValue || '';
+                    cargarCursosParaSelect(studentCycleSelect.value, studentCourseSelect, cursoValue);
+                }
+            });
         }
 
         function hideStudentModal() {
             studentModal.classList.remove('active');
             editingStudentId = null;
             studentForm.reset();
+            if (studentCycleSelect) studentCycleSelect.value = '';
+            if (studentCourseSelect) studentCourseSelect.innerHTML = '<option value="">Selecciona un curso</option>';
         }
 
         function resetUserHeader() {
@@ -1753,6 +1768,9 @@
                 if (e.target === studentModal) hideStudentModal();
             });
             if (studentForm) studentForm.addEventListener('submit', handleStudentSubmit);
+            if (studentCycleSelect) studentCycleSelect.addEventListener('change', (e) => {
+                cargarCursosParaSelect(e.target.value, studentCourseSelect);
+            });
 
             // Filters
             if (searchStudentsInput) searchStudentsInput.addEventListener('input', renderListaEstudiantes);
@@ -2190,8 +2208,8 @@
             e.preventDefault();
             const names = document.getElementById('student-names').value.trim();
             const lastnames = document.getElementById('student-lastnames').value.trim();
-            const ciclo = document.getElementById('student-cycle').value.trim();
-            const curso = document.getElementById('student-course').value.trim();
+            const ciclo = (studentCycleSelect?.value || '').trim();
+            const curso = (studentCourseSelect?.value || '').trim();
             if (!names || !lastnames || !ciclo || !curso) {
                 showNotification('Completa todos los campos', 'error');
                 return;
@@ -2249,6 +2267,8 @@
                 // update dashboard count if present
                 const totalEl = document.getElementById('total-students');
                 if (totalEl) totalEl.textContent = estudiantes.length || 0;
+                // ensure cycles/courses available
+                await cargarCiclosDesdeDB();
             } catch (err) {
                 console.error('cargarEstudiantes error', err);
             }
@@ -2355,33 +2375,68 @@
             }
         }
 
-        // Load courses from RTDB for a given cycle (used to populate course selects)
-        async function cargarCursosPorCiclo(ciclo) {
-            try {
-                const courseSelects = ['manual-course','bulk-course'].map(id => document.getElementById(id)).filter(Boolean);
-                courseSelects.forEach(s => s && (s.innerHTML = '<option value="">Cargando cursos...</option>'));
-                if (!ciclo) {
-                    courseSelects.forEach(s => s && (s.innerHTML = '<option value="">Seleccionar curso</option>'));
-                    return;
-                }
-                function cicloToKey(c) { if (!c) return null; const m = c.match(/Ciclo\s*(\w+)/i); if (m && m[1]) return 'ciclo_' + m[1].toUpperCase(); return c.trim().toLowerCase().replace(/\s+/g,'_'); }
-                const dbKey = cicloToKey(ciclo);
-                const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
-                const refPath = `/carreras/${carreraKey}/ciclos/${dbKey}/cursos`;
-                const snap = await database.ref(refPath).once('value');
-                const val = snap.val();
-                courseSelects.forEach(s => s && (s.innerHTML = '<option value="">Seleccionar curso</option>'));
-                if (!val) return;
-                const cursos = Array.isArray(val) ? val : Object.values(val);
-                cursos.forEach(c => {
-                    if (!c || !c.nombre) return;
-                    courseSelects.forEach(sel => {
-                        const opt = document.createElement('option'); opt.value = c.nombre.replace(/\s+/g,'_'); opt.textContent = c.nombre; sel.appendChild(opt);
-                    });
-                });
-            } catch (err) {
-                console.error('Error cargando cursos', err);
+        // Load cycles and courses from RTDB (single source) and feed selects
+        async function cargarCiclosDesdeDB() {
+            if (Object.keys(ciclosData).length) {
+                poblarSelectCiclos();
+                return;
             }
+            try {
+                const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
+                const snap = await database.ref(`/carreras/${carreraKey}/ciclos`).once('value');
+                const val = snap.val() || {};
+                ciclosData = {};
+                // Normalize cycles
+                Object.entries(val).forEach(([key, data]) => {
+                    const nombre = data?.nombre || key;
+                    const cursos = data?.cursos ? (Array.isArray(data.cursos) ? data.cursos : Object.values(data.cursos)) : [];
+                    ciclosData[key] = { nombre, cursos };
+                });
+                poblarSelectCiclos();
+            } catch (err) {
+                console.error('Error cargando ciclos', err);
+            }
+        }
+
+        function poblarSelectCiclos() {
+            const selects = [studentCycleSelect, filterCycleSelect];
+            selects.forEach(sel => {
+                if (!sel) return;
+                const current = sel.value;
+                const isStudentSelect = sel.id === 'student-cycle';
+                sel.innerHTML = isStudentSelect ? '<option value="">Selecciona un ciclo</option>' : '<option value="">Todos los ciclos</option>';
+                Object.entries(ciclosData).forEach(([key, data]) => {
+                    const opt = document.createElement('option');
+                    opt.value = data.nombre || key;
+                    opt.textContent = data.nombre || key;
+                    sel.appendChild(opt);
+                });
+                if (current) sel.value = current;
+            });
+        }
+
+        function cargarCursosParaSelect(cicloNombre, targetSelect, preselect = '') {
+            if (!targetSelect) return;
+            targetSelect.innerHTML = '<option value="">Selecciona un curso</option>';
+            if (!cicloNombre) return;
+            const entry = Object.values(ciclosData).find(c => (c.nombre === cicloNombre));
+            const cursos = entry?.cursos || [];
+            cursos.forEach(c => {
+                if (!c || !c.nombre) return;
+                const opt = document.createElement('option');
+                opt.value = c.nombre;
+                opt.textContent = c.nombre;
+                targetSelect.appendChild(opt);
+            });
+            if (preselect) targetSelect.value = preselect;
+        }
+
+        async function cargarCursosPorCiclo(ciclo) {
+            await cargarCiclosDesdeDB();
+            const manualCourse = document.getElementById('manual-course');
+            const bulkCourse = document.getElementById('bulk-course');
+            cargarCursosParaSelect(ciclo, manualCourse);
+            cargarCursosParaSelect(ciclo, bulkCourse);
         }
 
         function iniciarSSE() {
@@ -2398,7 +2453,9 @@
             const manualForm = document.getElementById('manual-attendance-form');
             if (manualForm) manualForm.addEventListener('submit', marcarAsistenciaManual);
             const filterCycle = document.getElementById('filter-cycle');
-            if (filterCycle) filterCycle.addEventListener('change', (e)=> cargarCursosPorCiclo(e.target.value));
+            if (filterCycle) filterCycle.addEventListener('change', (e)=> {
+                cargarCursosPorCiclo(e.target.value);
+            });
         }
 
         // Ensure initial data is loaded after auth
