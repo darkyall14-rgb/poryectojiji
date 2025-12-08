@@ -483,6 +483,29 @@
             border-bottom: 1px solid var(--gray-light);
         }
 
+        .student-table th:last-child,
+        .student-table td:last-child {
+            width: 200px;
+            min-width: 200px;
+            white-space: nowrap;
+        }
+
+        .student-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+        }
+
+        .student-actions .btn {
+            min-width: 80px;
+            padding: 8px 16px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         .student-table tr:hover {
             background: var(--gray-light);
         }
@@ -2323,8 +2346,10 @@
                     <td>${s.course || s.curso || ''}</td>
                     <td><span class="status-badge ${todayPresent ? 'status-present' : 'status-absent'}">${statusText}</span></td>
                     <td>
-                        <button class="btn btn-secondary" onclick="editStudent('${s.id || ''}')">Editar</button>
-                        <button class="btn btn-secondary" onclick="deleteStudent('${s.id || ''}')">Eliminar</button>
+                        <div class="student-actions">
+                            <button class="btn btn-secondary" onclick="editStudent('${s.id || ''}')">Editar</button>
+                            <button class="btn btn-secondary" onclick="deleteStudent('${s.id || ''}')">Eliminar</button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
