@@ -225,6 +225,13 @@
         .modal-card h3 { margin-bottom: 12px; }
         .modal-card .form-group { margin-bottom:10px; }
         .modal-close { float: right; cursor: pointer; background: transparent; border: none; font-size: 1.1rem; }
+        .modal-card .btn-block { width: 100%; display: inline-block; }
+        /* Modal de entrada obligatoria */
+        .entry-choices { display:flex; flex-direction:column; gap:12px; margin-top:6px; }
+        .entry-choices .btn { padding:12px; border-radius:12px; font-size:1rem; }
+        .modal-card.header-style { border-radius: 14px; padding: 18px; }
+        .modal-card .modal-title { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+        .modal-card .modal-title i { font-size:1.5rem; color:var(--primary); }
 
         .qr-container {
             display: flex;
@@ -505,9 +512,22 @@
         </div>
     </header>
 
+    <!-- Modal inicial: elegir entrada (obligatorio) -->
+    <div class="modal" id="entry-modal">
+        <div class="modal-card header-style">
+            <div class="modal-title"><i class="fas fa-door-open"></i><h3>Bienvenido</h3></div>
+            <p>Selecciona una opción para continuar:</p>
+            <div class="entry-choices">
+                <button class="btn btn-accent" id="entry-login"><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</button>
+                <button class="btn btn-primary" id="entry-register"><i class="fas fa-user-plus"></i> Registrarse</button>
+                <button class="btn btn-secondary" id="entry-student"><i class="fas fa-user-graduate"></i> Entrar como Alumno</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modales: Login y Registro Docente -->
     <div class="modal" id="login-modal">
-        <div class="modal-card">
+        <div class="modal-card header-style">
             <button class="modal-close" id="login-close">✕</button>
             <h3>Iniciar sesión (Docente)</h3>
             <form id="login-form">
@@ -520,7 +540,7 @@
                     <input id="login-pass" type="password" class="form-control" required />
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-                    <button type="submit" class="btn btn-accent">Ingresar</button>
+                    <button type="submit" class="btn btn-accent btn-block">Ingresar</button>
                     <button type="button" class="btn btn-secondary" id="open-register-from-login">Crear cuenta</button>
                 </div>
             </form>
@@ -528,7 +548,7 @@
     </div>
 
     <div class="modal" id="register-modal">
-        <div class="modal-card">
+        <div class="modal-card header-style">
             <button class="modal-close" id="register-close">✕</button>
             <h3>Registro Docente</h3>
             <form id="register-form">
@@ -549,7 +569,7 @@
                     <input id="reg-photo" type="url" class="form-control" />
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-                    <button type="submit" class="btn btn-primary">Crear cuenta</button>
+                    <button type="submit" class="btn btn-primary btn-block">Crear cuenta</button>
                     <button type="button" class="btn btn-secondary" id="open-login-from-register">Volver a login</button>
                 </div>
             </form>
@@ -791,6 +811,7 @@
         let estudiantes = [];
         let attendanceSessionId = null;
         let html5QrCodeInstance = null;
+        let alumnoModo = false; // Si el usuario entró como alumno para escanear
 
         function generarIdSesion() {
             return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -831,6 +852,8 @@
 
             attendanceSessionId = generarIdSesion();
             generarCodigoQR();
+            // Mostrar modal de entrada obligatorio al iniciar
+            toggleModal('entry-modal', true);
         });
 
         function configurarNavegacion() {
@@ -881,6 +904,12 @@
             document.getElementById('mark-attendance').addEventListener('click', marcarAsistenciaManual);
             document.getElementById('search-student').addEventListener('input', filtrarEstudiantes);
             document.getElementById('add-course').addEventListener('click', addNewCourse);
+            // Cargar cursos dinámicamente cuando se selecciona un ciclo
+            const studentCycleEl = document.getElementById('student-cycle');
+            if (studentCycleEl) studentCycleEl.addEventListener('change', e => {
+                const ciclo = e.target.value;
+                cargarCursosPorCiclo(ciclo);
+            });
         }
 
         function configurarEventosBotones() {
@@ -893,6 +922,13 @@
             document.getElementById('open-login-from-register').addEventListener('click', () => { toggleModal('register-modal', false); toggleModal('login-modal', true); });
             document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
             document.getElementById('register-form').addEventListener('submit', handleRegisterSubmit);
+            // Controles del modal inicial
+            const entryLoginBtn = document.getElementById('entry-login');
+            const entryRegisterBtn = document.getElementById('entry-register');
+            const entryStudentBtn = document.getElementById('entry-student');
+            if (entryLoginBtn) entryLoginBtn.addEventListener('click', () => { toggleModal('entry-modal', false); toggleModal('login-modal', true); });
+            if (entryRegisterBtn) entryRegisterBtn.addEventListener('click', () => { toggleModal('entry-modal', false); toggleModal('register-modal', true); });
+            if (entryStudentBtn) entryStudentBtn.addEventListener('click', () => { alumnoModo = true; document.getElementById('auth-buttons').classList.add('hidden'); const profile = document.getElementById('profile-info'); profile.classList.remove('hidden'); document.getElementById('profile-name').textContent = 'Alumno (Invitado)'; document.getElementById('profile-initial').textContent = 'A'; toggleModal('entry-modal', false); mostrarMensaje('Entraste como alumno. Solo puedes escanear el código QR.', 'success'); mostrarPestana('asistencia'); document.querySelectorAll('nav a').forEach(l => { if (l.id !== 'tab-asistencia' && l.id !== 'tab-inicio') l.style.display = 'none'; else l.style.display = 'block'; }); });
         }
 
         function toggleModal(id, show) {
@@ -949,7 +985,22 @@
             }
         }
 
-        function cerrarSesion() { if (!confirm('¿Deseas cerrar sesión?')) return; try { firebase.auth().signOut().catch(()=>{}); } catch(e){} usuarioActual = null; actualizarUIAuth(null); mostrarPestana('inicio'); }
+        function cerrarSesion() {
+            if (alumnoModo) {
+                if (!confirm('¿Salir del modo alumno?')) return;
+                alumnoModo = false;
+                usuarioActual = null;
+                actualizarUIAuth(null);
+                toggleModal('entry-modal', true);
+                mostrarPestana('inicio');
+                return;
+            }
+            if (!confirm('¿Deseas cerrar sesión?')) return;
+            try { firebase.auth().signOut().catch(()=>{}); } catch(e){}
+            usuarioActual = null;
+            actualizarUIAuth(null);
+            mostrarPestana('inicio');
+        }
 
         function actualizarUIAuth(user) {
             const authButtons = document.getElementById('auth-buttons');
@@ -1038,7 +1089,7 @@
         function filtrarEstudiantes() { const term = document.getElementById('search-student').value.toLowerCase(); document.querySelectorAll('.student-item').forEach(i => i.style.display = i.textContent.toLowerCase().includes(term) ? 'flex' : 'none'); }
 
         async function iniciarEscaneoQR() {
-            if (!usuarioActual) return mostrarMensaje('Inicia sesión para escanear', 'error', 'attendance-message');
+            if (!usuarioActual && !alumnoModo) return mostrarMensaje('Inicia sesión o entra como alumno para escanear', 'error', 'attendance-message');
             const prompt = document.getElementById('scan-prompt');
             const readerEl = document.getElementById('qr-reader');
             const resultEl = document.getElementById('scan-result');
@@ -1169,6 +1220,54 @@
         }
 
         function addNewCourse() { const newCourse = document.getElementById('new-course').value; if (!newCourse) return mostrarMensaje('Ingresa nombre del curso','error'); const courseSelect = document.getElementById('student-course'); const option = document.createElement('option'); option.value = newCourse.replace(/\s+/g,'_'); option.textContent = newCourse; courseSelect.appendChild(option); document.getElementById('new-course').value = ''; mostrarMensaje('Curso agregado','success'); }
+
+        // Cargar cursos desde Firebase Realtime Database según el ciclo seleccionado
+        async function cargarCursosPorCiclo(ciclo) {
+            const courseSelect = document.getElementById('student-course');
+            if (!courseSelect) return;
+            // Placeholder while cargando
+            courseSelect.innerHTML = '<option value="">Cargando cursos...</option>';
+            if (!ciclo) { courseSelect.innerHTML = '<option value="">Seleccionar curso</option>'; return; }
+
+            // Mapeo del nombre visible al key en la BDD (ej. "Ciclo I" -> "ciclo_I")
+            function cicloToKey(c) {
+                if (!c) return null;
+                const m = c.match(/Ciclo\s*(\w+)/i);
+                if (m && m[1]) return 'ciclo_' + m[1].toUpperCase();
+                return c.trim().toLowerCase().replace(/\s+/g,'_');
+            }
+
+            const dbKey = cicloToKey(ciclo);
+            if (!dbKey) { courseSelect.innerHTML = '<option value="">Seleccionar curso</option>'; return; }
+
+            try {
+                // Ruta en tu export: /carreras/Arquitectura_de_Plataformas_y_Servicios_de_TI/ciclos/{dbKey}/cursos
+                const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
+                const refPath = `/carreras/${carreraKey}/ciclos/${dbKey}/cursos`;
+                const snap = await firebase.database().ref(refPath).once('value');
+                const val = snap.val();
+                courseSelect.innerHTML = '<option value="">Seleccionar curso</option>';
+                if (!val) { showNoCourses(); return; }
+
+                // val puede ser array o objeto con índices
+                const cursos = Array.isArray(val) ? val : Object.values(val);
+                cursos.forEach(c => {
+                    if (!c || !c.nombre) return;
+                    const opt = document.createElement('option');
+                    opt.value = c.nombre.replace(/\s+/g,'_');
+                    opt.textContent = c.nombre;
+                    courseSelect.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('Error cargando cursos:', err);
+                courseSelect.innerHTML = '<option value="">No fue posible cargar cursos</option>';
+                mostrarMensaje('No se pudieron cargar los cursos desde la base de datos', 'error');
+            }
+
+            function showNoCourses() {
+                courseSelect.innerHTML = '<option value="">No hay cursos para este ciclo</option>';
+            }
+        }
 
         function mostrarMensaje(text, type, containerId = 'register-message') { const messageContainer = document.getElementById(containerId); messageContainer.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':type==='error'?'exclamation-circle':'info-circle'}"></i><div>${text}</div>`; messageContainer.className = `alert alert-${type==='success'?'success':type==='error'?'error':'info'}`; messageContainer.classList.remove('hidden'); setTimeout(()=>messageContainer.classList.add('hidden'),5000); }
 
