@@ -19,6 +19,12 @@ async function loadFirebaseConfig() {
         // Exponer en window para otros scripts
         window.auth = auth;
         window.database = database;
+        // Emitir evento para indicar que Firebase ya fue inicializado
+        try {
+            window.dispatchEvent(new Event('firebase-initialized'));
+        } catch (e) {
+            console.debug('No se pudo dispatch event firebase-initialized:', e);
+        }
         
         console.log('✅ Firebase initialized from server config');
     } catch (error) {

@@ -38,6 +38,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeDashboardListeners();
 });
 
+// También inicializar cuando se reciba el evento que indica que Firebase está listo
+window.addEventListener('firebase-initialized', function() {
+    initializeDashboardListeners();
+});
+
 // ========== FUNCIONES DE LISTENERS EN TIEMPO REAL ==========
 
 /**
