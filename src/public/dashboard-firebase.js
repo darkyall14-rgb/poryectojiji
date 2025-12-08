@@ -130,52 +130,117 @@ function listenToCourses(uid) {
  * Escuchar cambios en la asistencia en tiempo real (ahora desde las sesiones activas)
  */
 function listenToAttendance(uid) {
-    const path = `sessions`;
-    
-    if (firebaseListeners['attendance']) {
-        firebaseListeners['attendance']();
+    // We'll listen both to global `sessions` (QR sessions) and teacher-scoped `teachers/${uid}/attendance`
+    // so the dashboard works regardless of where attendance is stored.
+    const sessionsRef = database.ref('sessions');
+    const teacherAttendanceRef = database.ref(`teachers/${uid}/attendance`);
+
+    // Remove previous listeners if any
+    if (firebaseListeners['attendance_sessions']) {
+        firebaseListeners['attendance_sessions']();
+    }
+    if (firebaseListeners['attendance_teacher']) {
+        firebaseListeners['attendance_teacher']();
     }
 
-    const ref = database.ref(path);
-    const listener = ref.on('value', (snapshot) => {
-        attendance = [];
+    // Helper to merge arrays and update DOM
+    function setAttendanceFromArrays(arr1, arr2) {
+        // Merge and dedupe by key
+        const combined = (arr1 || []).concat(arr2 || []);
+        const map = {};
+        combined.forEach(item => {
+            const k = item.key || (item.studentId || item.id) + '|' + (item.sessionId || '');
+            map[k] = item;
+        });
+        attendance = Object.values(map);
+        console.log('📝 Registros de asistencia actualizados (en vivo):', attendance);
+        updateAttendanceStats();
+    }
+
+    // Listen to global sessions (QR flows)
+    const sessionsListener = sessionsRef.on('value', (snapshot) => {
         const sessionsData = snapshot.val();
-        
+        const fromSessions = [];
         if (sessionsData) {
             Object.values(sessionsData).forEach((session) => {
-                // Solo procesar sesiones de este docente
-                if (session.teacherId === uid && session.attendees) {
-                    const attendeesData = session.attendees;
-                    
-                    // Convertir attendees (puede ser array u objeto) a items individuales
-                    if (Array.isArray(attendeesData)) {
-                        attendeesData.forEach((att) => {
-                            attendance.push({
-                                key: att.studentId || att.id,
-                                ...att,
-                                sessionId: session.sessionId
-                            });
+                if (!session || !session.attendees) return;
+                // Only include attendees for this teacher (if teacherId present) or include all
+                if (session.teacherId && session.teacherId !== uid) return;
+
+                const attendeesData = session.attendees;
+                if (Array.isArray(attendeesData)) {
+                    attendeesData.forEach((att) => {
+                        fromSessions.push({
+                            key: att.studentId || att.id,
+                            ...att,
+                            sessionId: session.sessionId || session.id
                         });
-                    } else if (typeof attendeesData === 'object') {
-                        Object.entries(attendeesData).forEach(([key, att]) => {
-                            attendance.push({
-                                key: key,
-                                ...att,
-                                sessionId: session.sessionId
-                            });
+                    });
+                } else if (typeof attendeesData === 'object') {
+                    Object.entries(attendeesData).forEach(([key, att]) => {
+                        fromSessions.push({
+                            key: key,
+                            ...att,
+                            sessionId: session.sessionId || session.id
                         });
-                    }
+                    });
                 }
             });
         }
 
-        console.log('📝 Registros de asistencia actualizados (en vivo):', attendance);
-        
-        // Actualizar el DOM
-        updateAttendanceStats();
+        // Also fetch teacher-scoped attendance current snapshot synchronously
+        teacherAttendanceRef.once('value').then((tSnap) => {
+            const fromTeacher = [];
+            const tVal = tSnap.val();
+            if (tVal) {
+                Object.entries(tVal).forEach(([k, v]) => {
+                    fromTeacher.push({ key: k, ...v });
+                });
+            }
+            setAttendanceFromArrays(fromSessions, fromTeacher);
+        }).catch((e) => {
+            setAttendanceFromArrays(fromSessions, []);
+        });
     });
 
-    firebaseListeners['attendance'] = () => ref.off('value');
+    // Listen to teacher-scoped attendance changes
+    const teacherListener = teacherAttendanceRef.on('value', (snapshot) => {
+        const tVal = snapshot.val();
+        const fromTeacher = [];
+        if (tVal) {
+            Object.entries(tVal).forEach(([k, v]) => {
+                fromTeacher.push({ key: k, ...v });
+            });
+        }
+
+        // Also fetch sessions snapshot to merge
+        sessionsRef.once('value').then((sSnap) => {
+            const sessionsData = sSnap.val();
+            const fromSessions = [];
+            if (sessionsData) {
+                Object.values(sessionsData).forEach((session) => {
+                    if (!session || !session.attendees) return;
+                    if (session.teacherId && session.teacherId !== uid) return;
+                    const attendeesData = session.attendees;
+                    if (Array.isArray(attendeesData)) {
+                        attendeesData.forEach((att) => {
+                            fromSessions.push({ key: att.studentId || att.id, ...att, sessionId: session.sessionId || session.id });
+                        });
+                    } else if (typeof attendeesData === 'object') {
+                        Object.entries(attendeesData).forEach(([key, att]) => {
+                            fromSessions.push({ key: key, ...att, sessionId: session.sessionId || session.id });
+                        });
+                    }
+                });
+            }
+            setAttendanceFromArrays(fromSessions, fromTeacher);
+        }).catch(() => {
+            setAttendanceFromArrays([], fromTeacher);
+        });
+    });
+
+    firebaseListeners['attendance_sessions'] = () => sessionsRef.off('value', sessionsListener);
+    firebaseListeners['attendance_teacher'] = () => teacherAttendanceRef.off('value', teacherListener);
 }
 
 // ========== FUNCIONES DE DESUSCRIPCIÓN ==========
