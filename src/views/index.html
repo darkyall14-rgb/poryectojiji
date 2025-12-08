@@ -1049,6 +1049,41 @@
         </div>
     </div>
 
+    <!-- Student Modal -->
+    <div id="student-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="student-modal-title">Nuevo Estudiante</h3>
+                <button class="modal-close" id="student-close">×</button>
+            </div>
+            <form id="student-form">
+                <div class="form-group">
+                    <label class="form-label">Nombres</label>
+                    <input type="text" id="student-names" class="form-control" placeholder="Nombres" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Apellidos</label>
+                    <input type="text" id="student-lastnames" class="form-control" placeholder="Apellidos" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ciclo</label>
+                    <input type="text" id="student-cycle" class="form-control" placeholder="Ej: Ciclo I" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Curso</label>
+                    <input type="text" id="student-course" class="form-control" placeholder="Ej: Matemática" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="student-cancel">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Main App (Hidden by default) -->
     <div id="app-content" style="display: none;">
         <!-- Header -->
@@ -1507,6 +1542,7 @@
         let isDarkMode = localStorage.getItem('darkMode') === 'true';
         let qrScanner = null;
         let classQRCode = null;
+        let editingStudentId = null;
 
         // DOM Elements
         const entryModal = document.getElementById('entry-modal');
@@ -1523,6 +1559,15 @@
         const logoutCancelBtn = document.getElementById('logout-cancel');
         const logoutCloseBtn = document.getElementById('logout-close');
         const userMenu = document.getElementById('user-menu');
+        const studentModal = document.getElementById('student-modal');
+        const studentModalTitle = document.getElementById('student-modal-title');
+        const studentForm = document.getElementById('student-form');
+        const studentCloseBtn = document.getElementById('student-close');
+        const studentCancelBtn = document.getElementById('student-cancel');
+        const addStudentBtn = document.getElementById('add-student-btn');
+        const searchStudentsInput = document.getElementById('search-students');
+        const filterCourseSelect = document.getElementById('filter-course');
+        const filterCycleSelect = document.getElementById('filter-cycle');
 
         // Initialize App
         function initApp() {
@@ -1564,6 +1609,7 @@
             loginModal.classList.remove('active');
             registerModal.classList.remove('active');
             appContent.style.display = 'block';
+            hideStudentModal();
         }
 
         function showLogoutModal() {
@@ -1572,6 +1618,22 @@
 
         function hideLogoutModal() {
             logoutModal.classList.remove('active');
+        }
+
+        function showStudentModal(student = null) {
+            studentModal.classList.add('active');
+            editingStudentId = student ? student.id : null;
+            studentModalTitle.textContent = student ? 'Editar Estudiante' : 'Nuevo Estudiante';
+            document.getElementById('student-names').value = student?.names || '';
+            document.getElementById('student-lastnames').value = student?.lastnames || '';
+            document.getElementById('student-cycle').value = student?.cycle || student?.ciclo || '';
+            document.getElementById('student-course').value = student?.course || student?.curso || '';
+        }
+
+        function hideStudentModal() {
+            studentModal.classList.remove('active');
+            editingStudentId = null;
+            studentForm.reset();
         }
 
         function resetUserHeader() {
@@ -1682,6 +1744,20 @@
                     hideLogoutModal();
                 }
             });
+
+            // Student modal
+            if (addStudentBtn) addStudentBtn.addEventListener('click', () => showStudentModal());
+            if (studentCloseBtn) studentCloseBtn.addEventListener('click', hideStudentModal);
+            if (studentCancelBtn) studentCancelBtn.addEventListener('click', hideStudentModal);
+            if (studentModal) studentModal.addEventListener('click', (e) => {
+                if (e.target === studentModal) hideStudentModal();
+            });
+            if (studentForm) studentForm.addEventListener('submit', handleStudentSubmit);
+
+            // Filters
+            if (searchStudentsInput) searchStudentsInput.addEventListener('input', renderListaEstudiantes);
+            if (filterCourseSelect) filterCourseSelect.addEventListener('change', renderListaEstudiantes);
+            if (filterCycleSelect) filterCycleSelect.addEventListener('change', renderListaEstudiantes);
 
             // Tabs in attendance section
             document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2110,6 +2186,51 @@
             overlay.style.display = show ? 'flex' : 'none';
         }
 
+        async function handleStudentSubmit(e) {
+            e.preventDefault();
+            const names = document.getElementById('student-names').value.trim();
+            const lastnames = document.getElementById('student-lastnames').value.trim();
+            const ciclo = document.getElementById('student-cycle').value.trim();
+            const curso = document.getElementById('student-course').value.trim();
+            if (!names || !lastnames || !ciclo || !curso) {
+                showNotification('Completa todos los campos', 'error');
+                return;
+            }
+            try {
+                showLoading(true);
+                const payload = { names, lastnames, cycle: ciclo, course: curso, attendance: [] };
+                if (!editingStudentId) {
+                    if (backendOrigin) {
+                        const res = await fetch(`${backendOrigin}/api/students`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nombres: names, apellidos: lastnames, ciclo, curso })
+                        });
+                        if (!res.ok) throw new Error('No se pudo crear el estudiante');
+                    } else {
+                        await database.ref('students').push(payload);
+                    }
+                    showNotification('Estudiante creado', 'success');
+                } else {
+                    // Actualizar directamente en RTDB (no requiere backend token)
+                    await database.ref('students/' + editingStudentId).update({
+                        names,
+                        lastnames,
+                        cycle: ciclo,
+                        course: curso
+                    });
+                    showNotification('Estudiante actualizado', 'success');
+                }
+                hideStudentModal();
+                await cargarEstudiantes();
+            } catch (err) {
+                console.error('handleStudentSubmit', err);
+                showNotification('Error guardando estudiante', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
         // --- Migrated helper functions from legacy index.html ---
 
         async function cargarEstudiantes() {
@@ -2141,19 +2262,49 @@
                 tbody.innerHTML = `<tr><td colspan="6">No hay estudiantes registrados.</td></tr>`;
                 return;
             }
-            estudiantes.forEach(s => {
+            // Build filter options
+            if (filterCourseSelect) {
+                const selectedCourse = filterCourseSelect.value;
+                const courses = Array.from(new Set(estudiantes.map(e => e.course || e.curso).filter(Boolean)));
+                filterCourseSelect.innerHTML = '<option value="">Todos los cursos</option>' + courses.map(c => `<option value="${c}">${c}</option>`).join('');
+                if (selectedCourse) filterCourseSelect.value = selectedCourse;
+            }
+            if (filterCycleSelect) {
+                const selectedCycle = filterCycleSelect.value;
+                const cycles = Array.from(new Set(estudiantes.map(e => e.cycle || e.ciclo).filter(Boolean)));
+                filterCycleSelect.innerHTML = '<option value="">Todos los ciclos</option>' + cycles.map(c => `<option value="${c}">${c}</option>`).join('');
+                if (selectedCycle) filterCycleSelect.value = selectedCycle;
+            }
+
+            const term = (searchStudentsInput?.value || '').toLowerCase();
+            const courseFilter = filterCourseSelect?.value || '';
+            const cycleFilter = filterCycleSelect?.value || '';
+
+            const filtered = estudiantes.filter(s => {
+                const matchesTerm = !term || `${s.names || ''} ${s.lastnames || ''} ${s.id || ''} ${s.course || s.curso || ''} ${s.cycle || s.ciclo || ''}`.toLowerCase().includes(term);
+                const matchesCourse = !courseFilter || (s.course || s.curso) === courseFilter;
+                const matchesCycle = !cycleFilter || (s.cycle || s.ciclo || s.cycle) === cycleFilter;
+                return matchesTerm && matchesCourse && matchesCycle;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6">No hay estudiantes para los filtros aplicados.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(s => {
                 const todayPresent = (s.attendance || []).some(a => new Date(a.timestamp || a.date || 0).toDateString() === new Date().toDateString());
                 const statusText = todayPresent ? 'Presente' : 'Ausente';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${(s.names||s.names)|| (s.names? s.names : (s.names||'Sin nombre'))}</td>
+                    <td>${s.names || 'Sin nombre'}</td>
                     <td>${s.id || ''}</td>
                     <td>${s.cycle || s.ciclo || ''}</td>
                     <td>${s.course || s.curso || ''}</td>
                     <td><span class="status-badge ${todayPresent ? 'status-present' : 'status-absent'}">${statusText}</span></td>
                     <td>
-                        <button class="btn btn-secondary" onclick="editStudent('${s.id}')">Editar</button>
-                        <button class="btn btn-secondary" onclick="deleteStudent('${s.id}')">Eliminar</button>
+                        <button class="btn btn-secondary" onclick="editStudent('${s.id || ''}')">Editar</button>
+                        <button class="btn btn-secondary" onclick="deleteStudent('${s.id || ''}')">Eliminar</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -2246,13 +2397,6 @@
         function setupAdditionalEventListeners() {
             const manualForm = document.getElementById('manual-attendance-form');
             if (manualForm) manualForm.addEventListener('submit', marcarAsistenciaManual);
-            const searchInput = document.getElementById('search-students');
-            if (searchInput) searchInput.addEventListener('input', function(){
-                const term = this.value.toLowerCase();
-                document.querySelectorAll('#students-table-body tr').forEach(tr => {
-                    tr.style.display = tr.textContent.toLowerCase().includes(term) ? '' : 'none';
-                });
-            });
             const filterCycle = document.getElementById('filter-cycle');
             if (filterCycle) filterCycle.addEventListener('change', (e)=> cargarCursosPorCiclo(e.target.value));
         }
@@ -2267,6 +2411,34 @@
             cargarEstudiantes();
             iniciarSSE();
         });
+
+        // Expose edit/delete for inline buttons
+        window.editStudent = (id) => {
+            const s = estudiantes.find(e => e.id === id);
+            if (!s) return showNotification('No se encontró el estudiante', 'error');
+            showStudentModal(s);
+        };
+
+        window.deleteStudent = async (id) => {
+            if (!id) return;
+            if (!confirm('¿Eliminar este estudiante?')) return;
+            try {
+                showLoading(true);
+                if (backendOrigin) {
+                    // Prefer RTDB delete to evitar token requerido
+                    await database.ref('students/' + id).remove();
+                } else {
+                    await database.ref('students/' + id).remove();
+                }
+                showNotification('Estudiante eliminado', 'success');
+                await cargarEstudiantes();
+            } catch (err) {
+                console.error('deleteStudent', err);
+                showNotification('Error eliminando estudiante', 'error');
+            } finally {
+                showLoading(false);
+            }
+        };
     </script>
 </body>
 </html>
