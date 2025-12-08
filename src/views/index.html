@@ -947,6 +947,29 @@
             const activeNavLink = document.getElementById(`tab-${id}`); if (activeNavLink) activeNavLink.style.backgroundColor = 'rgba(255,255,255,0.2)';
             if (id === 'estudiantes') cargarEstudiantes();
             if (id === 'ciclos') actualizarConteosCiclos();
+            // Cuando se muestra la pestaña de asistencia, asegurarnos de cargar estudiantes
+            if (id === 'asistencia') {
+                awaitCargarEstudiantesForAsistencia();
+            }
+        }
+
+        // Helper: cargar estudiantes y preparar la UI de asistencia
+        function awaitCargarEstudiantesForAsistencia() {
+            // cargar lista si está vacía o actualizar
+            cargarEstudiantes();
+            // si estamos en modo alumno, ocultar pestaña manual
+            const tabManual = document.getElementById('tab-manual');
+            const tabScan = document.getElementById('tab-scan');
+            if (alumnoModo && tabManual) {
+                tabManual.style.display = 'none';
+                tabScan.classList.add('active');
+                document.getElementById('scan-content').classList.add('active');
+                document.getElementById('manual-content').classList.remove('active');
+            } else if (tabManual) {
+                tabManual.style.display = 'inline-block';
+            }
+            // rellenar select de asistencia manual con los estudiantes cargados
+            setTimeout(() => cargarEstudiantesParaAsistenciaManual(), 300);
         }
 
         function configurarBotonesAuth() {
@@ -1119,6 +1142,8 @@
         }
 
         async function marcarAsistenciaManual() {
+            // Sólo docentes pueden registrar manualmente
+            if (!usuarioActual) return mostrarMensaje('Inicia sesión como docente para registrar manualmente', 'error', 'attendance-message');
             const studentId = document.getElementById('select-student').value;
             const status = document.getElementById('attendance-status').value;
             if (!studentId) return mostrarMensaje('Selecciona un estudiante', 'error', 'attendance-message');
@@ -1163,7 +1188,32 @@
             });
         }
 
-        function cargarEstudiantesParaAsistenciaManual() { cargarEstudiantes(); }
+        function cargarEstudiantesParaAsistenciaManual() {
+            // Si ya tenemos estudiantes cargados, rellenar el select; si no, cargar primero
+            const select = document.getElementById('select-student');
+            if (!select) return;
+            select.innerHTML = '<option value="">Cargando estudiantes...</option>';
+            if (!estudiantes || estudiantes.length === 0) {
+                // intentar cargar desde el servidor
+                cargarEstudiantes().then(() => {
+                    rellenarSelectEstudiantes(select);
+                }).catch(() => {
+                    select.innerHTML = '<option value="">No hay estudiantes</option>';
+                });
+                return;
+            }
+            rellenarSelectEstudiantes(select);
+
+            function rellenarSelectEstudiantes(sel) {
+                sel.innerHTML = '<option value="">Seleccionar estudiante</option>';
+                estudiantes.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.id || `${s.names}_${s.lastnames}`.replace(/\s+/g,'_');
+                    option.textContent = `${s.names} ${s.lastnames} - ${s.cycle}`;
+                    sel.appendChild(option);
+                });
+            }
+        }
 
         function filtrarEstudiantes() { const term = document.getElementById('search-student').value.toLowerCase(); document.querySelectorAll('.student-item').forEach(i => i.style.display = i.textContent.toLowerCase().includes(term) ? 'flex' : 'none'); }
 
