@@ -101,8 +101,9 @@ async function listSessions(req, res) {
   try {
     const sessions = await firebaseUtils.readOnce("sessions");
 
+    // If there are no sessions, return an empty array (200) so frontend can handle gracefully
     if (!sessions) {
-      return res.status(404).json({ message: "No sessions found" });
+      return res.status(200).json([]);
     }
 
     res.status(200).json(sessions);
