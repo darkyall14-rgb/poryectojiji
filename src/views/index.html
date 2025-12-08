@@ -9,8 +9,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -2097,27 +2097,42 @@
             });
 
             function startScanner() {
+                // Check if Html5Qrcode is available
+                if (typeof Html5Qrcode === 'undefined') {
+                    showNotification('La librería de escáner QR no está cargada. Por favor, recarga la página.', 'error');
+                    return;
+                }
+
                 scannerActive = true;
                 toggleScannerBtn.innerHTML = '<i class="fas fa-stop"></i> Detener Escáner';
-                scannerContainer.innerHTML = '<div id="qr-reader" style="width: 100%"></div>';
+                scannerContainer.innerHTML = '<div id="qr-reader" style="width: 100%; max-width: 500px; margin: 0 auto;"></div>';
                 scanResult.style.display = 'none';
 
-                qrScanner = new Html5Qrcode("qr-reader");
-                
-                qrScanner.start(
-                    { facingMode: "environment" },
-                    {
-                        fps: 10,
-                        qrbox: { width: 250, height: 250 }
-                    },
-                    onScanSuccess,
-                    onScanError
-                ).catch(err => {
-                    console.error("Error starting scanner:", err);
-                    showNotification("Error al iniciar la cámara", "error");
+                try {
+                    qrScanner = new Html5Qrcode("qr-reader");
+                    
+                    qrScanner.start(
+                        { facingMode: "environment" },
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 }
+                        },
+                        onScanSuccess,
+                        onScanError
+                    ).catch(err => {
+                        console.error("Error starting scanner:", err);
+                        showNotification("Error al iniciar la cámara: " + (err.message || 'Error desconocido'), "error");
+                        scannerActive = false;
+                        toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
+                        scannerContainer.innerHTML = '';
+                    });
+                } catch (err) {
+                    console.error("Error creating scanner:", err);
+                    showNotification("Error al crear el escáner: " + (err.message || 'Error desconocido'), "error");
                     scannerActive = false;
                     toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
-                });
+                    scannerContainer.innerHTML = '';
+                }
             }
 
             function stopScanner() {
@@ -2147,20 +2162,27 @@
             try {
                 showLoading(true);
                 
-                // Parse QR data
-                let studentData;
+                // Parse QR data - can be JSON string or plain student ID
+                let studentId;
                 try {
-                    studentData = JSON.parse(qrData);
+                    const parsed = JSON.parse(qrData);
+                    studentId = parsed.studentId || parsed.id || qrData;
                 } catch (e) {
-                    studentData = { studentId: qrData };
+                    // If not JSON, treat as plain student ID
+                    studentId = qrData.trim();
                 }
 
-                // Get student info
-                const studentRef = database.ref('students/' + studentData.studentId);
+                if (!studentId) {
+                    showNotification('Código QR inválido', 'error');
+                    return;
+                }
+
+                // Get student info from database
+                const studentRef = database.ref('students/' + studentId);
                 const studentSnapshot = await studentRef.once('value');
                 
                 if (!studentSnapshot.exists()) {
-                    showNotification('Estudiante no encontrado', 'error');
+                    showNotification('Estudiante no encontrado en la base de datos', 'error');
                     return;
                 }
 
@@ -2168,12 +2190,15 @@
                 const today = new Date().toISOString().split('T')[0];
                 const studentName = `${student.names || ''} ${student.lastnames || ''}`.trim() || 'Estudiante';
                 const initial = (student.names || student.lastnames || 'E').charAt(0).toUpperCase();
+                const course = student.course || student.curso || '';
+                const cycle = student.cycle || student.ciclo || '';
 
                 // Check if already registered today
-                const existingRef = database.ref('attendance/' + today + '/' + studentData.studentId);
+                const existingRef = database.ref('attendance/' + today + '/' + studentId);
                 const existingSnapshot = await existingRef.once('value');
                 
                 if (existingSnapshot.exists()) {
+                    const existing = existingSnapshot.val();
                     showNotification('Este estudiante ya tiene asistencia registrada hoy', 'warning');
                     const scanResult = document.getElementById('scan-result');
                     scanResult.style.display = 'block';
@@ -2184,7 +2209,7 @@
                             </div>
                             <div>
                                 <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
-                                <div style="color: var(--gray); font-size: 0.9rem;">${student.cycle || ''} - ${student.course || student.curso || ''}</div>
+                                <div style="color: var(--gray); font-size: 0.9rem;">${cycle} - ${course}</div>
                             </div>
                         </div>
                         <div style="background: rgba(248, 150, 30, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
@@ -2192,24 +2217,38 @@
                                 <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
                                 <span style="font-weight: 600;">Ya registrado anteriormente</span>
                             </div>
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 8px;">
+                                Estado: ${existing.status === 'present' ? 'Presente' : existing.status || 'Registrado'}
+                            </div>
                         </div>
                     `;
                     return;
                 }
 
-                // Record attendance
-                const attendanceRef = database.ref('attendance/' + today + '/' + studentData.studentId);
-                await attendanceRef.set({
-                    studentId: studentData.studentId,
+                // Record attendance in Firebase
+                const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
+                const attendanceData = {
+                    studentId: studentId,
                     studentName: studentName,
-                    course: student.course || student.curso || '',
-                    cycle: student.cycle || student.ciclo || '',
+                    course: course,
+                    cycle: cycle,
                     status: 'present',
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    method: 'qr'
-                });
+                    method: 'qr',
+                    scannedAt: new Date().toISOString()
+                };
 
-                // Show result
+                await attendanceRef.set(attendanceData);
+
+                // Verify the data was saved
+                const verifyRef = database.ref('attendance/' + today + '/' + studentId);
+                const verifySnapshot = await verifyRef.once('value');
+                
+                if (!verifySnapshot.exists()) {
+                    throw new Error('No se pudo verificar el guardado de la asistencia');
+                }
+
+                // Show success result
                 const scanResult = document.getElementById('scan-result');
                 scanResult.style.display = 'block';
                 scanResult.innerHTML = `
@@ -2219,7 +2258,7 @@
                         </div>
                         <div>
                             <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
-                            <div style="color: var(--gray); font-size: 0.9rem;">${student.cycle || student.ciclo || ''} - ${student.course || student.curso || ''}</div>
+                            <div style="color: var(--gray); font-size: 0.9rem;">${cycle} - ${course}</div>
                         </div>
                     </div>
                     <div style="background: rgba(76, 201, 240, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
@@ -2234,12 +2273,33 @@
                 `;
 
                 showNotification('Asistencia registrada exitosamente', 'success');
-                loadDashboardData();
-                await cargarEstudiantes();
+                
+                // Refresh dashboard and students list
+                await Promise.all([
+                    loadDashboardData(),
+                    cargarEstudiantes()
+                ]);
 
             } catch (error) {
                 console.error('Error handling QR scan:', error);
                 showNotification('Error al procesar el código QR: ' + (error.message || 'Error desconocido'), 'error');
+                
+                // Show error in scan result
+                const scanResult = document.getElementById('scan-result');
+                if (scanResult) {
+                    scanResult.style.display = 'block';
+                    scanResult.innerHTML = `
+                        <div style="background: rgba(249, 65, 68, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--danger);">
+                                <i class="fas fa-times-circle" style="font-size: 1.2rem;"></i>
+                                <span style="font-weight: 600;">Error al registrar asistencia</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 8px;">
+                                ${error.message || 'Error desconocido'}
+                            </div>
+                        </div>
+                    `;
+                }
             } finally {
                 showLoading(false);
             }
@@ -2248,6 +2308,8 @@
         // Generate Class QR
         function generateClassQR() {
             const qrContainer = document.getElementById('class-qr-code');
+            if (!qrContainer) return;
+
             const qrData = {
                 type: 'class',
                 classId: 'CLS_' + Date.now(),
@@ -2255,7 +2317,20 @@
                 teacherId: currentUser ? currentUser.uid : 'demo'
             };
 
-            QRCode.toCanvas(qrContainer, JSON.stringify(qrData), {
+            // Check if QRCode is available
+            if (typeof QRCode === 'undefined') {
+                showNotification('La librería de QR no está cargada. Por favor, recarga la página.', 'error');
+                return;
+            }
+
+            // Clear container
+            qrContainer.innerHTML = '';
+
+            // Create canvas element
+            const canvas = document.createElement('canvas');
+            qrContainer.appendChild(canvas);
+
+            QRCode.toCanvas(canvas, JSON.stringify(qrData), {
                 width: 200,
                 height: 200,
                 margin: 1,
@@ -2266,7 +2341,8 @@
             }, function(error) {
                 if (error) {
                     console.error('Error generating QR:', error);
-                    showNotification('Error al generar el código QR', 'error');
+                    showNotification('Error al generar el código QR: ' + (error.message || 'Error desconocido'), 'error');
+                    qrContainer.innerHTML = '<span>Error al generar</span>';
                 } else {
                     showNotification('Código QR generado exitosamente', 'success');
                     classQRCode = qrData;
@@ -2814,9 +2890,35 @@
             }
         }
 
+        // Check if required libraries are loaded
+        function checkLibraries() {
+            const missing = [];
+            if (typeof QRCode === 'undefined') {
+                missing.push('QRCode');
+            }
+            if (typeof Html5Qrcode === 'undefined') {
+                missing.push('Html5Qrcode');
+            }
+            if (typeof firebase === 'undefined') {
+                missing.push('Firebase');
+            }
+            
+            if (missing.length > 0) {
+                console.warn('Librerías faltantes:', missing);
+                showNotification('Algunas librerías no se cargaron correctamente. Por favor, recarga la página.', 'warning');
+                return false;
+            }
+            return true;
+        }
+
         // Ensure initial data is loaded after auth
         // Initialize the app
         document.addEventListener('DOMContentLoaded', () => {
+            // Check libraries first
+            if (!checkLibraries()) {
+                console.error('Algunas librerías requeridas no están disponibles');
+            }
+            
             initApp();
             // Generate attendance session id
             attendanceSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
