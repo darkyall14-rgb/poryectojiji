@@ -6,6 +6,7 @@ const courseController = require("../controllers/courseController");
 const attendanceController = require("../controllers/attendanceController");
 const sessionController = require("../controllers/sessionController");
 const enrollmentController = require("../controllers/enrollmentController");
+const teacherController = require("../controllers/teacherController");
 
 // ============ HEALTH CHECK ============
 router.get("/health", (req, res) => {
@@ -68,6 +69,10 @@ router.get("/config/firebase", (req, res) => {
 
 // ============ ENROLLMENTS ============
 router.post("/enrollments", enrollmentController.createEnrollment);
+
+// ============ TEACHER-SCOPED DATA ============
+router.get('/teachers/:uid/courses', teacherController.listCourses);
+router.get('/teachers/:uid/students', teacherController.listStudents);
 
 module.exports = router;
 

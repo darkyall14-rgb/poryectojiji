@@ -297,24 +297,45 @@ async function loadUserData() {
 // Cargar estudiantes
 async function loadStudents() {
     try {
-        // Source of truth: Firebase (scoped by teacher)
-        const snapshot = await database.ref('teachers/' + currentUser.uid + '/students').once('value');
-        students = [];
-        if (snapshot.exists()) {
-            const studentsData = snapshot.val();
-            Object.keys(studentsData).forEach(key => {
-                students.push({ id: key, ...studentsData[key] });
-            });
-            renderStudents();
-            return;
+        // Prefer server-side teacher-scoped data when available
+        if (currentUser && currentUser.uid) {
+            try {
+                const apiStudents = await apiFetch(`/api/teachers/${currentUser.uid}/students`);
+                if (Array.isArray(apiStudents)) {
+                    students = apiStudents.map(s => ({ id: s.key || s.id || s.studentId || '', ...s }));
+                    renderStudents();
+                    return;
+                }
+            } catch (err) {
+                console.warn('Error fetching teacher students from API, falling back to Firebase:', err.message || err);
+            }
         }
-        // If empty in Firebase, fallback to API
+
+        // Fallback: read from Firebase client-side
         try {
-            const apiStudents = await apiFetch('/api/students');
-            students = Array.isArray(apiStudents) ? apiStudents : [];
-        } catch (_) {
+            const snapshot = await database.ref('teachers/' + (currentUser ? currentUser.uid : 'public') + '/students').once('value');
             students = [];
+            if (snapshot.exists()) {
+                const studentsData = snapshot.val();
+                Object.keys(studentsData).forEach(key => {
+                    students.push({ id: key, ...studentsData[key] });
+                });
+            } else {
+                // Fallback to global API students
+                const apiStudents = await apiFetch('/api/students');
+                students = Array.isArray(apiStudents) ? apiStudents : [];
+            }
+        } catch (fbError) {
+            console.error('Error loading students from Firebase:', fbError);
+            try {
+                const apiStudents = await apiFetch('/api/students');
+                students = Array.isArray(apiStudents) ? apiStudents : [];
+            } catch (apiErr) {
+                console.error('Error loading students from API:', apiErr);
+                students = [];
+            }
         }
+
         renderStudents();
     } catch (fbError) {
         console.error('Error loading students:', fbError);
@@ -333,25 +354,61 @@ async function loadStudents() {
 // Cargar cursos
 async function loadCourses() {
     try {
-        // Cargar desde la API (fuente de verdad)
-        const apiCourses = await apiFetch('/api/courses');
-        
-        // Asegurar que sea un array
-        if (Array.isArray(apiCourses)) {
-            // Remover duplicados basado en ID
-            const uniqueCourses = {};
-            apiCourses.forEach(course => {
-                if (!uniqueCourses[course.id]) {
-                    uniqueCourses[course.id] = course;
+        // Prefer server-side teacher-scoped courses when available
+        if (currentUser && currentUser.uid) {
+            try {
+                const apiCourses = await apiFetch(`/api/teachers/${currentUser.uid}/courses`);
+                if (Array.isArray(apiCourses)) {
+                    courses = apiCourses.map(c => ({ id: c.key || c.id || '', ...c }));
+                    renderCourses();
+                    updateCourseSelect();
+                    return;
                 }
-            });
-            courses = Object.values(uniqueCourses);
-        } else {
-            courses = [];
+            } catch (err) {
+                console.warn('Error fetching teacher courses from API, falling back to global API or Firebase:', err.message || err);
+            }
         }
-        
-        renderCourses();
-        updateCourseSelect();
+
+        // Fallback: try global API first
+        try {
+            const apiCourses = await apiFetch('/api/courses');
+            if (Array.isArray(apiCourses)) {
+                // Remover duplicados basado en ID
+                const uniqueCourses = {};
+                apiCourses.forEach(course => {
+                    if (!uniqueCourses[course.id]) {
+                        uniqueCourses[course.id] = course;
+                    }
+                });
+                courses = Object.values(uniqueCourses);
+            } else {
+                courses = [];
+            }
+            renderCourses();
+            updateCourseSelect();
+            return;
+        } catch (apiErr) {
+            console.warn('Global API /api/courses failed, falling back to Firebase:', apiErr.message || apiErr);
+        }
+
+        // Final fallback: read teacher-scoped courses from Firebase client-side
+        try {
+            const snapshot = await database.ref('teachers/' + (currentUser ? currentUser.uid : 'public') + '/courses').once('value');
+            courses = [];
+            if (snapshot.exists()) {
+                const coursesData = snapshot.val();
+                Object.keys(coursesData).forEach(key => {
+                    courses.push({ id: key, ...coursesData[key] });
+                });
+            }
+            renderCourses();
+            updateCourseSelect();
+        } catch (fbError) {
+            console.error('Error loading courses from Firebase:', fbError);
+            courses = [];
+            renderCourses();
+            updateCourseSelect();
+        }
     } catch (error) {
         console.error('Error loading courses from API:', error);
         // Fallback a Firebase si API falla
