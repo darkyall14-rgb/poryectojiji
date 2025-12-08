@@ -43,6 +43,22 @@
             --gradient: linear-gradient(135deg, var(--primary), var(--accent));
         }
 
+        /* Dark theme overrides (applied when body has .dark) */
+        body.dark {
+            --primary: #7c85ff;
+            --secondary: #ff8fb3;
+            --accent: #3ec1c9;
+            --dark: #e6eef9;
+            --light: #0b1220;
+            --gray: #9aa3b3;
+            --success: #2ecc71;
+            --warning: #ffbb33;
+            --danger: #ff6b6b;
+            --gradient: linear-gradient(135deg,#3b3f9f,#0ea6a6);
+            background-color: #071018;
+            color: var(--dark);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -88,6 +104,9 @@
             align-items: center;
             gap: 10px;
         }
+
+        /* Theme toggle button */
+        #theme-toggle-btn { margin-left: 10px; }
 
         .logo i {
             font-size: 2rem;
@@ -529,6 +548,7 @@
                 <button class="btn btn-secondary" id="login-btn">Iniciar Sesión</button>
                 <button class="btn btn-primary" id="register-btn">Registrarse</button>
             </div>
+            <button id="theme-toggle-btn" class="btn btn-secondary" title="Alternar tema"><i class="fas fa-moon"></i></button>
             <div class="profile-info hidden" id="profile-info">
                 <div class="profile-img" id="profile-initial">M</div>
                 <span id="profile-name">Docente</span>
@@ -879,6 +899,7 @@
             generarCodigoQR();
             // Mostrar modal de entrada obligatorio al iniciar
             toggleModal('entry-modal', true);
+            configurarTema();
         });
 
         function configurarNavegacion() {
@@ -932,6 +953,29 @@
             document.getElementById('login-btn').addEventListener('click', mostrarLoginModal);
             document.getElementById('register-btn').addEventListener('click', mostrarRegisterModal);
             document.getElementById('logout-btn').addEventListener('click', cerrarSesion);
+            // Theme toggle
+            const themeBtn = document.getElementById('theme-toggle-btn');
+            if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+        }
+
+        function applyTheme(theme) {
+            const body = document.body;
+            if (theme === 'dark') body.classList.add('dark'); else body.classList.remove('dark');
+            // update icon
+            const btn = document.getElementById('theme-toggle-btn');
+            if (btn) btn.innerHTML = theme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        }
+
+        function toggleTheme() {
+            const current = localStorage.getItem('theme') || (document.body.classList.contains('dark') ? 'dark' : 'light');
+            const next = current === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', next);
+            applyTheme(next);
+        }
+
+        function configurarTema() {
+            const saved = localStorage.getItem('theme') || 'light';
+            applyTheme(saved);
         }
 
         function configurarFormularios() {
