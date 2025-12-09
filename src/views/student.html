@@ -750,6 +750,9 @@
 
         // Setup Event Listeners
         function setupEventListeners() {
+            // Get modal content first (needed for multiple functions)
+            const modalContent = entryModal.querySelector('.modal-content');
+            
             // Tab switching - Use capture phase to execute before stopPropagation
             document.getElementById('tab-login').addEventListener('click', (e) => {
                 e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
@@ -775,21 +778,36 @@
                 document.getElementById('login-form').style.display = 'none';
             }, true); // Use capture phase
 
-            // Prevent form clicks from propagating (but allow tab buttons to work)
-            loginForm.addEventListener('click', (e) => {
-                // Don't stop if clicking on tab buttons
-                if (!e.target.closest('#tab-login, #tab-register')) {
+            // Prevent form events from propagating (but allow tab buttons and back buttons to work)
+            const preventFormPropagation = (e) => {
+                // Don't stop if clicking on tab buttons or back buttons
+                if (!e.target.closest('#tab-login, #tab-register, #back-to-main, #back-to-main-register, #entry-close')) {
                     e.stopPropagation();
+                    e.stopImmediatePropagation();
                 }
-            }, true);
+            };
             
+            // Add to login form
+            ['click', 'focus', 'blur', 'input', 'change', 'keydown', 'keyup'].forEach(eventType => {
+                loginForm.addEventListener(eventType, preventFormPropagation, true);
+            });
+            
+            // Add to register form
             const registerForm = document.getElementById('register-form');
-            registerForm.addEventListener('click', (e) => {
-                // Don't stop if clicking on tab buttons
-                if (!e.target.closest('#tab-login, #tab-register')) {
-                    e.stopPropagation();
-                }
-            }, true);
+            ['click', 'focus', 'blur', 'input', 'change', 'keydown', 'keyup', 'mousedown', 'mouseup'].forEach(eventType => {
+                registerForm.addEventListener(eventType, preventFormPropagation, true);
+            });
+            
+            // Add protection directly to all input fields
+            const allInputs = modalContent.querySelectorAll('input, textarea, select');
+            allInputs.forEach(input => {
+                ['focus', 'blur', 'input', 'change', 'keydown', 'keyup', 'click', 'mousedown', 'mouseup'].forEach(eventType => {
+                    input.addEventListener(eventType, (e) => {
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                    }, true);
+                });
+            });
 
             // Login Form
             loginForm.addEventListener('submit', async (e) => {
@@ -817,35 +835,41 @@
             document.getElementById('register-form').addEventListener('submit', handleRegister);
 
             // Close button - Return to main page
-            document.getElementById('entry-close').addEventListener('click', () => {
+            // Use capture phase to execute before stopPropagation
+            document.getElementById('entry-close').addEventListener('click', (e) => {
+                e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
                 window.location.href = 'index.html';
-            });
+            }, true); // Use capture phase
 
             // Back buttons - Return to main page
-            document.getElementById('back-to-main').addEventListener('click', () => {
+            // Use capture phase to execute before stopPropagation
+            document.getElementById('back-to-main').addEventListener('click', (e) => {
+                e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
                 window.location.href = 'index.html';
-            });
-            document.getElementById('back-to-main-register').addEventListener('click', () => {
+            }, true); // Use capture phase
+            
+            document.getElementById('back-to-main-register').addEventListener('click', (e) => {
+                e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
                 window.location.href = 'index.html';
-            });
+            }, true); // Use capture phase
 
             // Prevent event propagation from modal content to overlay
-            const modalContent = entryModal.querySelector('.modal-content');
-            
             // Stop all event propagation from modal content and all its children
             if (modalContent) {
-                // Exclude tab buttons from stopPropagation
+                // Exclude tab buttons and back buttons from stopPropagation
                 const tabButtonIds = ['tab-login', 'tab-register'];
+                const backButtonIds = ['back-to-main', 'back-to-main-register', 'entry-close'];
+                const excludedButtonIds = [...tabButtonIds, ...backButtonIds];
                 
                 // Use capture phase to stop events before they bubble to overlay
                 const stopPropagation = (e) => {
-                    // Don't stop propagation for tab buttons - let their handlers execute first
+                    // Don't stop propagation for excluded buttons - let their handlers execute first
                     const targetId = e.target.id;
-                    const isTabButton = tabButtonIds.includes(targetId);
-                    const isInsideTabButton = e.target.closest('#tab-login, #tab-register');
+                    const isExcludedButton = excludedButtonIds.includes(targetId);
+                    const isInsideExcludedButton = e.target.closest('#' + excludedButtonIds.join(', #'));
                     
-                    if (isTabButton || isInsideTabButton) {
-                        return; // Allow tab button clicks to propagate to their handlers
+                    if (isExcludedButton || isInsideExcludedButton) {
+                        return; // Allow excluded button clicks to propagate to their handlers
                     }
                     
                     e.stopPropagation();
@@ -856,29 +880,73 @@
                     modalContent.addEventListener(eventType, stopPropagation, true);
                 });
                 
-                // Also add to all form elements, but exclude tab buttons
-                const formElements = modalContent.querySelectorAll('input, button:not(#tab-login):not(#tab-register), select, textarea, form');
+                // Also add to all form elements, but exclude tab buttons and back buttons
+                const formElements = modalContent.querySelectorAll('input, button:not(#tab-login):not(#tab-register):not(#back-to-main):not(#back-to-main-register):not(#entry-close), select, textarea, form');
                 formElements.forEach(el => {
-                    // Skip if it's a tab button
-                    if (tabButtonIds.includes(el.id)) {
+                    // Skip if it's an excluded button
+                    if (excludedButtonIds.includes(el.id)) {
                         return;
                     }
-                    ['click', 'mousedown', 'mouseup', 'focus', 'blur'].forEach(eventType => {
+                    // Stop propagation for all input-related events
+                    ['click', 'mousedown', 'mouseup', 'focus', 'blur', 'input', 'change', 'keydown', 'keyup', 'keypress'].forEach(eventType => {
                         el.addEventListener(eventType, (e) => {
                             e.stopPropagation();
+                            e.stopImmediatePropagation();
                         }, true);
                     });
                 });
             }
             
             // Close modal when clicking outside (only on the overlay, not on modal content)
+            // Use flags to track interaction state
+            let allowModalClose = true;
+            let hasFocusedInput = false;
+            
+            // Prevent closing when interacting with form elements
+            if (modalContent) {
+                modalContent.addEventListener('mouseenter', () => {
+                    allowModalClose = false;
+                });
+                modalContent.addEventListener('mouseleave', () => {
+                    // Only allow close if no input has focus
+                    if (!hasFocusedInput) {
+                        allowModalClose = true;
+                    }
+                });
+                
+                // Track when inputs have focus
+                const allInputs = modalContent.querySelectorAll('input, textarea, select');
+                allInputs.forEach(input => {
+                    input.addEventListener('focus', () => {
+                        hasFocusedInput = true;
+                        allowModalClose = false;
+                    });
+                    input.addEventListener('blur', () => {
+                        hasFocusedInput = false;
+                        // Small delay to allow click events to process
+                        setTimeout(() => {
+                            if (!modalContent.matches(':hover')) {
+                                allowModalClose = true;
+                            }
+                        }, 100);
+                    });
+                });
+            }
+            
             entryModal.addEventListener('click', (e) => {
-                // Only redirect if clicking directly on the overlay itself
-                // This should never trigger if stopPropagation is working correctly
-                if (e.target === entryModal && e.target !== modalContent && !modalContent.contains(e.target)) {
+                // Only redirect if:
+                // 1. We're allowing modal close
+                // 2. No input has focus
+                // 3. The click target is exactly the overlay (not any child)
+                // 4. The click is not inside modal content
+                if (allowModalClose && 
+                    !hasFocusedInput &&
+                    e.target === entryModal && 
+                    e.target !== modalContent &&
+                    (!modalContent || !modalContent.contains(e.target))) {
                     window.location.href = 'index.html';
                 }
-            }, false); // Use bubble phase, but stopPropagation should prevent it from reaching here
+            }, false);
 
             // User Menu
             userMenu.addEventListener('click', () => {
