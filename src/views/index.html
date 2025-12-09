@@ -1123,6 +1123,35 @@
         </div>
     </div>
 
+    <!-- Student Panel (for QR scanning) -->
+    <div id="student-panel" style="display: none;">
+        <div class="container" style="max-width: 600px; margin: 50px auto; padding: 20px;">
+            <div class="dashboard-card">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <div class="logo-icon" style="margin: 0 auto 20px; width: 80px; height: 80px;">
+                        <i class="fas fa-user-graduate" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <h2 style="margin-bottom: 10px;">Panel de Estudiante</h2>
+                    <p style="color: var(--gray);">Marca tu asistencia</p>
+                </div>
+
+                <div id="student-panel-content">
+                    <div style="text-align: center; padding: 40px;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
+                        <p style="margin-top: 20px; color: var(--gray);">Cargando información...</p>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <button class="btn btn-secondary" id="student-panel-close">
+                        <i class="fas fa-times"></i>
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Main App (Hidden by default) -->
     <div id="app-content" style="display: none;">
         <!-- Header -->
@@ -1361,13 +1390,14 @@
                                 <div id="scan-result" class="scan-result" style="display: none;"></div>
                                 
                                 <div style="text-align: center; margin-top: 30px;">
-                                    <h4>O usa este código QR para la clase</h4>
+                                    <h4>QR para Estudiantes</h4>
+                                    <p style="color: var(--gray); font-size: 0.9rem; margin-bottom: 15px;">Los estudiantes escanearán este QR para marcar su asistencia</p>
                                     <div id="class-qr-code" style="margin: 20px auto; width: 200px; height: 200px; background: #f5f5f5; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                                         <span>Generar código QR</span>
                                     </div>
                                     <button class="btn btn-primary" id="generate-class-qr">
                                         <i class="fas fa-sync-alt"></i>
-                                        Generar Nuevo QR
+                                        Generar QR de Asistencia
                                     </button>
                                 </div>
                             </div>
@@ -2249,149 +2279,61 @@
             }
         }
 
-        // Handle QR Scan
+        // Handle QR Scan - Redirects to student panel
         async function handleQRScan(qrData) {
             try {
                 showLoading(true);
                 
-                // Parse QR data - can be JSON string or plain student ID
-                let studentId;
+                // Parse QR data
+                let qrInfo;
                 try {
-                    const parsed = JSON.parse(qrData);
-                    studentId = parsed.studentId || parsed.id || qrData;
+                    qrInfo = JSON.parse(qrData);
                 } catch (e) {
-                    // If not JSON, treat as plain student ID
-                    studentId = qrData.trim();
+                    // If not JSON, might be old format or URL
+                    if (qrData.includes('student-panel') || qrData.includes('teacherId')) {
+                        // Try to extract from URL
+                        const urlParams = new URLSearchParams(qrData.split('?')[1] || '');
+                        qrInfo = {
+                            type: 'student-panel',
+                            teacherId: urlParams.get('teacherId') || qrData
+                        };
+                    } else {
+                        // Old format - treat as student ID and show panel
+                        qrInfo = { type: 'student-id', studentId: qrData.trim() };
+                    }
                 }
 
-                if (!studentId) {
-                    showNotification('Código QR inválido', 'error');
+                // If it's a student-panel QR, show the panel
+                if (qrInfo.type === 'student-panel' && qrInfo.teacherId) {
+                    await showStudentPanel(qrInfo.teacherId);
                     return;
                 }
 
-                // Get student info from database
-                const studentRef = database.ref('students/' + studentId);
-                const studentSnapshot = await studentRef.once('value');
-                
-                if (!studentSnapshot.exists()) {
-                    showNotification('Estudiante no encontrado en la base de datos', 'error');
+                // If it's a student ID (old format), show panel to select student
+                if (qrInfo.type === 'student-id' || qrInfo.studentId) {
+                    const studentId = qrInfo.studentId || qrInfo.id || qrData;
+                    // Get student to find their teacher
+                    const studentRef = database.ref('students/' + studentId);
+                    const studentSnapshot = await studentRef.once('value');
+                    
+                    if (studentSnapshot.exists()) {
+                        const student = studentSnapshot.val();
+                        if (student.teacherId) {
+                            await showStudentPanel(student.teacherId, studentId);
+                        } else {
+                            showNotification('Este estudiante no está asignado a un docente', 'error');
+                        }
+                    } else {
+                        showNotification('Estudiante no encontrado', 'error');
+                    }
                     return;
                 }
 
-                const student = studentSnapshot.val();
-                const today = new Date().toISOString().split('T')[0];
-                const studentName = `${student.names || ''} ${student.lastnames || ''}`.trim() || 'Estudiante';
-                const initial = (student.names || student.lastnames || 'E').charAt(0).toUpperCase();
-                const course = student.course || student.curso || '';
-                const cycle = student.cycle || student.ciclo || '';
-
-                // Check if already registered today
-                const existingRef = database.ref('attendance/' + today + '/' + studentId);
-                const existingSnapshot = await existingRef.once('value');
-                
-                if (existingSnapshot.exists()) {
-                    const existing = existingSnapshot.val();
-                    showNotification('Este estudiante ya tiene asistencia registrada hoy', 'warning');
-                    const scanResult = document.getElementById('scan-result');
-                    scanResult.style.display = 'block';
-                    scanResult.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--warning); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                                ${initial}
-                            </div>
-                            <div>
-                                <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
-                                <div style="color: var(--gray); font-size: 0.9rem;">${cycle} - ${course}</div>
-                            </div>
-                        </div>
-                        <div style="background: rgba(248, 150, 30, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--warning);">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
-                                <span style="font-weight: 600;">Ya registrado anteriormente</span>
-                            </div>
-                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 8px;">
-                                Estado: ${existing.status === 'present' ? 'Presente' : existing.status || 'Registrado'}
-                            </div>
-                        </div>
-                    `;
-                    return;
-                }
-
-                // Record attendance in Firebase
-                const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
-                const attendanceData = {
-                    studentId: studentId,
-                    studentName: studentName,
-                    course: course,
-                    cycle: cycle,
-                    status: 'present',
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    method: 'qr',
-                    scannedAt: new Date().toISOString()
-                };
-
-                await attendanceRef.set(attendanceData);
-
-                // Verify the data was saved
-                const verifyRef = database.ref('attendance/' + today + '/' + studentId);
-                const verifySnapshot = await verifyRef.once('value');
-                
-                if (!verifySnapshot.exists()) {
-                    throw new Error('No se pudo verificar el guardado de la asistencia');
-                }
-
-                // Show success result
-                const scanResult = document.getElementById('scan-result');
-                scanResult.style.display = 'block';
-                scanResult.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                        <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                            ${initial}
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; font-size: 1.1rem;">${studentName}</div>
-                            <div style="color: var(--gray); font-size: 0.9rem;">${cycle} - ${course}</div>
-                        </div>
-                    </div>
-                    <div style="background: rgba(76, 201, 240, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--success);">
-                            <i class="fas fa-check-circle" style="font-size: 1.2rem;"></i>
-                            <span style="font-weight: 600;">Asistencia registrada exitosamente</span>
-                        </div>
-                        <div style="font-size: 0.9rem; color: var(--gray); margin-top: 5px;">
-                            ${new Date().toLocaleTimeString()}
-                        </div>
-                    </div>
-                `;
-
-                showNotification('Asistencia registrada exitosamente', 'success');
-                
-                // Refresh dashboard and students list
-                await Promise.all([
-                    loadDashboardData(),
-                    cargarEstudiantes()
-                ]);
+                showNotification('Código QR no reconocido', 'error');
 
             } catch (error) {
                 console.error('Error handling QR scan:', error);
                 showNotification('Error al procesar el código QR: ' + (error.message || 'Error desconocido'), 'error');
-                
-                // Show error in scan result
-                const scanResult = document.getElementById('scan-result');
-                if (scanResult) {
-                    scanResult.style.display = 'block';
-                    scanResult.innerHTML = `
-                        <div style="background: rgba(249, 65, 68, 0.1); padding: 15px; border-radius: 12px; text-align: center;">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--danger);">
-                                <i class="fas fa-times-circle" style="font-size: 1.2rem;"></i>
-                                <span style="font-weight: 600;">Error al registrar asistencia</span>
-                            </div>
-                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 8px;">
-                                ${error.message || 'Error desconocido'}
-                            </div>
-                        </div>
-                    `;
-                }
             } finally {
                 showLoading(false);
             }
@@ -2403,11 +2345,22 @@
             const qrContainer = document.getElementById('class-qr-code');
             if (!qrContainer) return;
 
+            if (!currentUser) {
+                showNotification('Debes iniciar sesión como docente para generar el QR', 'error');
+                return;
+            }
+
+            // Get teacher info
+            const teacherRef = database.ref('users/' + currentUser.uid);
+            const teacherSnapshot = await teacherRef.once('value');
+            const teacherData = teacherSnapshot.val() || {};
+
             const qrData = {
-                type: 'class',
-                classId: 'CLS_' + Date.now(),
+                type: 'student-panel',
+                teacherId: currentUser.uid,
+                teacherName: currentUser.displayName || teacherData.name || 'Docente',
                 timestamp: new Date().toISOString(),
-                teacherId: currentUser ? currentUser.uid : 'demo'
+                url: window.location.origin + window.location.pathname + '#student-panel?teacherId=' + currentUser.uid
             };
 
             const qrText = JSON.stringify(qrData);
@@ -2532,13 +2485,36 @@
             }
             try {
                 showLoading(true);
-                const payload = { names, lastnames, cycle: ciclo, course: curso, attendance: [] };
+                
+                // Get current teacher ID
+                const teacherId = currentUser ? currentUser.uid : null;
+                if (!teacherId) {
+                    showNotification('Debes iniciar sesión como docente para crear estudiantes', 'error');
+                    return;
+                }
+
+                const payload = { 
+                    names, 
+                    lastnames, 
+                    cycle: ciclo, 
+                    course: curso, 
+                    attendance: [],
+                    teacherId: teacherId,
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                };
+                
                 if (!editingStudentId) {
                     if (backendOrigin) {
                         const res = await fetch(`${backendOrigin}/api/students`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ nombres: names, apellidos: lastnames, ciclo, curso })
+                            body: JSON.stringify({ 
+                                nombres: names, 
+                                apellidos: lastnames, 
+                                ciclo, 
+                                curso,
+                                teacherId: teacherId
+                            })
                         });
                         if (!res.ok) throw new Error('No se pudo crear el estudiante');
                     } else {
@@ -2551,7 +2527,8 @@
                         names,
                         lastnames,
                         cycle: ciclo,
-                        course: curso
+                        course: curso,
+                        teacherId: teacherId // Ensure teacherId is set
                     });
                     showNotification('Estudiante actualizado', 'success');
                 }
@@ -2566,6 +2543,233 @@
         }
 
         // --- Migrated helper functions from legacy index.html ---
+
+        // Show Student Panel for attendance marking
+        async function showStudentPanel(teacherId, preselectedStudentId = null) {
+            try {
+                showLoading(true);
+                
+                // Hide main app and show student panel
+                const appContent = document.getElementById('app-content');
+                const studentPanel = document.getElementById('student-panel');
+                const panelContent = document.getElementById('student-panel-content');
+                
+                if (!studentPanel || !panelContent) {
+                    showNotification('Error: Panel de estudiante no encontrado', 'error');
+                    return;
+                }
+
+                // Get teacher info
+                const teacherRef = database.ref('users/' + teacherId);
+                const teacherSnapshot = await teacherRef.once('value');
+                const teacherData = teacherSnapshot.val() || {};
+                const teacherName = teacherData.name || teacherData.displayName || 'Docente';
+
+                // Get students for this teacher
+                const studentsRef = database.ref('students');
+                const studentsSnapshot = await studentsRef.once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Filter students by teacherId
+                const teacherStudents = Object.keys(allStudents)
+                    .map(id => ({ id, ...allStudents[id] }))
+                    .filter(s => s.teacherId === teacherId);
+
+                if (teacherStudents.length === 0) {
+                    panelContent.innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <i class="fas fa-users-slash" style="font-size: 3rem; color: var(--gray); margin-bottom: 20px;"></i>
+                            <h3 style="margin-bottom: 10px;">No hay estudiantes asignados</h3>
+                            <p style="color: var(--gray);">Este docente no tiene estudiantes registrados.</p>
+                        </div>
+                    `;
+                    appContent.style.display = 'none';
+                    studentPanel.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+
+                // Check today's attendance
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceRef = database.ref('attendance/' + today);
+                const attendanceSnapshot = await attendanceRef.once('value');
+                const todayAttendance = attendanceSnapshot.val() || {};
+
+                // Build student selection form
+                let html = `
+                    <div style="margin-bottom: 25px; padding: 20px; background: var(--gray-light); border-radius: 12px;">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2rem;">
+                                ${teacherName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 1.1rem;">${teacherName}</div>
+                                <div style="color: var(--gray); font-size: 0.9rem;">Docente</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="student-attendance-form">
+                        <div class="form-group">
+                            <label class="form-label">Selecciona tu nombre</label>
+                            <select id="student-select" class="form-control" required>
+                                <option value="">Selecciona tu nombre de la lista</option>
+                                ${teacherStudents.map(s => {
+                                    const hasAttendance = todayAttendance[s.id];
+                                    const status = hasAttendance ? todayAttendance[s.id].status : null;
+                                    const statusText = status === 'present' ? ' (Ya marcado: Presente)' : 
+                                                      status === 'late' ? ' (Ya marcado: Tardío)' :
+                                                      status === 'excused' ? ' (Ya marcado: Justificado)' :
+                                                      status ? ' (Ya marcado: ' + status + ')' : '';
+                                    return `<option value="${s.id}" ${s.id === preselectedStudentId ? 'selected' : ''}>${s.names || ''} ${s.lastnames || ''} - ${s.cycle || ''} - ${s.course || ''}${statusText}</option>`;
+                                }).join('')}
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="student-info" style="display: none;">
+                            <div style="padding: 15px; background: var(--gray-light); border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 8px;" id="selected-student-name"></div>
+                                <div style="font-size: 0.9rem; color: var(--gray);" id="selected-student-details"></div>
+                            </div>
+
+                            <label class="form-label">Estado de asistencia</label>
+                            <select id="attendance-status" class="form-control" required>
+                                <option value="present">Presente</option>
+                                <option value="late">Tardío</option>
+                                <option value="excused">Justificado</option>
+                                <option value="absent">Ausente</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;" id="mark-attendance-btn" disabled>
+                            <i class="fas fa-check-circle"></i>
+                            Marcar Asistencia
+                        </button>
+                    </form>
+                `;
+
+                panelContent.innerHTML = html;
+                appContent.style.display = 'none';
+                studentPanel.style.display = 'block';
+
+                // Setup form handlers
+                const studentSelect = document.getElementById('student-select');
+                const studentInfo = document.getElementById('student-info');
+                const markBtn = document.getElementById('mark-attendance-btn');
+                const attendanceForm = document.getElementById('student-attendance-form');
+
+                studentSelect.addEventListener('change', (e) => {
+                    const studentId = e.target.value;
+                    if (studentId) {
+                        const student = teacherStudents.find(s => s.id === studentId);
+                        if (student) {
+                            document.getElementById('selected-student-name').textContent = `${student.names || ''} ${student.lastnames || ''}`.trim();
+                            document.getElementById('selected-student-details').textContent = `${student.cycle || ''} - ${student.course || student.curso || ''}`;
+                            studentInfo.style.display = 'block';
+                            markBtn.disabled = false;
+
+                            // Check if already has attendance
+                            const existing = todayAttendance[studentId];
+                            if (existing) {
+                                document.getElementById('attendance-status').value = existing.status || 'present';
+                                markBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar Asistencia';
+                            } else {
+                                markBtn.innerHTML = '<i class="fas fa-check-circle"></i> Marcar Asistencia';
+                            }
+                        }
+                    } else {
+                        studentInfo.style.display = 'none';
+                        markBtn.disabled = true;
+                    }
+                });
+
+                attendanceForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const studentId = studentSelect.value;
+                    const status = document.getElementById('attendance-status').value;
+
+                    if (!studentId) {
+                        showNotification('Selecciona tu nombre', 'error');
+                        return;
+                    }
+
+                    const student = teacherStudents.find(s => s.id === studentId);
+                    if (!student) {
+                        showNotification('Estudiante no encontrado', 'error');
+                        return;
+                    }
+
+                    try {
+                        showLoading(true);
+                        const attendanceData = {
+                            studentId: studentId,
+                            studentName: `${student.names || ''} ${student.lastnames || ''}`.trim(),
+                            course: student.course || student.curso || '',
+                            cycle: student.cycle || student.ciclo || '',
+                            status: status,
+                            teacherId: teacherId,
+                            teacherName: teacherName,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP,
+                            method: 'student-self',
+                            markedAt: new Date().toISOString()
+                        };
+
+                        await database.ref('attendance/' + today + '/' + studentId).set(attendanceData);
+                        
+                        showNotification('Asistencia marcada exitosamente', 'success');
+                        
+                        // Update UI
+                        markBtn.innerHTML = '<i class="fas fa-check-circle"></i> Asistencia Marcada';
+                        markBtn.disabled = true;
+                        markBtn.style.background = 'var(--success)';
+                        
+                        // Reload panel to show updated status
+                        setTimeout(() => {
+                            showStudentPanel(teacherId, studentId);
+                        }, 1500);
+
+                    } catch (err) {
+                        console.error('Error marking attendance:', err);
+                        showNotification('Error al marcar asistencia: ' + (err.message || 'Error desconocido'), 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                });
+
+                // Setup close button
+                const closeBtn = document.getElementById('student-panel-close');
+                if (closeBtn) {
+                    closeBtn.onclick = () => {
+                        studentPanel.style.display = 'none';
+                        appContent.style.display = 'block';
+                    };
+                }
+
+                // If student is preselected, trigger change
+                if (preselectedStudentId && studentSelect) {
+                    studentSelect.value = preselectedStudentId;
+                    studentSelect.dispatchEvent(new Event('change'));
+                }
+
+            } catch (error) {
+                console.error('Error showing student panel:', error);
+                showNotification('Error al cargar el panel: ' + (error.message || 'Error desconocido'), 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Check URL for student panel
+        function checkStudentPanelURL() {
+            const hash = window.location.hash;
+            if (hash.includes('student-panel')) {
+                const params = new URLSearchParams(hash.split('?')[1] || '');
+                const teacherId = params.get('teacherId');
+                if (teacherId) {
+                    showStudentPanel(teacherId);
+                }
+            }
+        }
 
         // Real-time attendance listener
         let attendanceListener = null;
@@ -2651,12 +2855,15 @@
             const term = (searchStudentsInput?.value || '').toLowerCase();
             const courseFilter = filterCourseSelect?.value || '';
             const cycleFilter = filterCycleSelect?.value || '';
+            const teacherId = currentUser ? currentUser.uid : null;
 
             const filtered = estudiantes.filter(s => {
+                // Filter by teacher if logged in
+                const matchesTeacher = !teacherId || s.teacherId === teacherId;
                 const matchesTerm = !term || `${s.names || ''} ${s.lastnames || ''} ${s.id || ''} ${s.course || s.curso || ''} ${s.cycle || s.ciclo || ''}`.toLowerCase().includes(term);
                 const matchesCourse = !courseFilter || (s.course || s.curso) === courseFilter;
                 const matchesCycle = !cycleFilter || (s.cycle || s.ciclo || s.cycle) === cycleFilter;
-                return matchesTerm && matchesCourse && matchesCycle;
+                return matchesTeacher && matchesTerm && matchesCourse && matchesCycle;
             });
 
             if (filtered.length === 0) {
@@ -2731,6 +2938,9 @@
                 showLoading(true);
                 const today = new Date().toISOString().split('T')[0];
                 const student = estudiantes.find(s => s.id === studentId);
+                const teacherId = currentUser ? currentUser.uid : (student?.teacherId || null);
+                const teacherName = currentUser ? (currentUser.displayName || 'Docente') : 'Docente';
+                
                 const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
                 await attendanceRef.set({ 
                     studentId, 
@@ -2738,6 +2948,8 @@
                     course, 
                     status, 
                     notes,
+                    teacherId: teacherId,
+                    teacherName: teacherName,
                     timestamp: firebase.database.ServerValue.TIMESTAMP, 
                     method: 'manual' 
                 });
@@ -2784,6 +2996,9 @@
 
                     try {
                         const student = estudiantes.find(s => s.id === studentId);
+                        const teacherId = currentUser ? currentUser.uid : (student?.teacherId || null);
+                        const teacherName = currentUser ? (currentUser.displayName || 'Docente') : 'Docente';
+                        
                         const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
                         await attendanceRef.set({
                             studentId,
@@ -2791,6 +3006,8 @@
                             course: curso,
                             cycle: ciclo,
                             status,
+                            teacherId: teacherId,
+                            teacherName: teacherName,
                             timestamp: firebase.database.ServerValue.TIMESTAMP,
                             method: 'bulk'
                         });
@@ -2918,8 +3135,12 @@
                 return;
             }
 
+            // Filter by course and cycle, and also by current teacher
+            const teacherId = currentUser ? currentUser.uid : null;
             const filtered = await cargarEstudiantesPorCurso(ciclo, curso);
-            filtered.forEach(s => {
+            const teacherStudents = teacherId ? filtered.filter(s => s.teacherId === teacherId) : filtered;
+            
+            teacherStudents.forEach(s => {
                 const opt = document.createElement('option');
                 opt.value = s.id;
                 opt.textContent = `${s.names || ''} ${s.lastnames || ''} - ${s.cycle || s.ciclo || ''}`;
@@ -2943,19 +3164,23 @@
                 return;
             }
 
+            // Filter by course, cycle, and teacher
+            const teacherId = currentUser ? currentUser.uid : null;
             const filtered = await cargarEstudiantesPorCurso(ciclo, curso);
-            if (filtered.length === 0) {
+            const teacherStudents = teacherId ? filtered.filter(s => s.teacherId === teacherId) : filtered;
+            
+            if (teacherStudents.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-users"></i>
-                        <p>No hay estudiantes en este curso</p>
+                        <p>No hay estudiantes en este curso para tu cuenta</p>
                     </div>
                 `;
                 return;
             }
 
             let html = '<div style="display: grid; gap: 12px;">';
-            filtered.forEach(s => {
+            teacherStudents.forEach(s => {
                 const studentId = s.id;
                 html += `
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--gray-light); border-radius: 8px;">
@@ -3122,6 +3347,14 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // Wait for libraries to load
             await waitForLibraries();
+            
+            // Check if URL has student panel hash
+            checkStudentPanelURL();
+            
+            // Listen for hash changes (when QR redirects)
+            window.addEventListener('hashchange', () => {
+                checkStudentPanelURL();
+            });
             
             // Initialize app even if some libraries are missing (non-critical)
             initApp();
