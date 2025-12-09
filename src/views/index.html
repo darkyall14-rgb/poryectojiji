@@ -1052,6 +1052,13 @@
                     <label class="form-label">Confirmar Contraseña</label>
                     <input type="password" id="register-confirm" class="form-control" placeholder="Repite tu contraseña" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Cuenta</label>
+                    <select id="register-role" class="form-control" required>
+                        <option value="teacher">Docente</option>
+                        <option value="student">Estudiante</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
                     <i class="fas fa-user-plus"></i>
                     Crear Cuenta
@@ -1142,10 +1149,14 @@
                     </div>
                 </div>
 
-                <div style="text-align: center; margin-top: 30px;">
+                <div style="text-align: center; margin-top: 30px; display: flex; gap: 10px; justify-content: center;">
                     <button class="btn btn-secondary" id="student-panel-close">
                         <i class="fas fa-times"></i>
                         Cerrar
+                    </button>
+                    <button class="btn btn-danger" id="student-panel-logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Cerrar Sesión
                     </button>
                 </div>
             </div>
@@ -1665,19 +1676,43 @@
             }
 
             // Check auth state
-            auth.onAuthStateChanged((user) => {
+            auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     currentUser = user;
-                    showApp();
-                    loadUserData();
-                    loadDashboardData();
-                    // Setup real-time listeners after user is authenticated
-                    cargarEstudiantes().then(() => {
-                        setupDashboardRealTime();
-                    });
+                    
+                    // Check user role to determine which view to show
+                    try {
+                        const userDataSnapshot = await database.ref('users/' + user.uid).once('value');
+                        const userData = userDataSnapshot.val();
+                        const userRole = userData ? userData.role : 'teacher';
+                        
+                        if (userRole === 'student' || userRole === 'estudiante') {
+                            // Show student panel for students
+                            showStudentView();
+                        } else {
+                            // Show teacher dashboard for teachers
+                            showApp();
+                            loadUserData();
+                            loadDashboardData();
+                            // Setup real-time listeners after user is authenticated
+                            cargarEstudiantes().then(() => {
+                                setupDashboardRealTime();
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error checking user role:', error);
+                        // Default to teacher view if error
+                        showApp();
+                        loadUserData();
+                        loadDashboardData();
+                        cargarEstudiantes().then(() => {
+                            setupDashboardRealTime();
+                        });
+                    }
                 } else {
                     // Clean up listeners when user logs out
                     cleanupListeners();
+                    hideStudentView();
                     showEntryModal();
                 }
             });
@@ -1702,7 +1737,80 @@
             loginModal.classList.remove('active');
             registerModal.classList.remove('active');
             appContent.style.display = 'block';
+            const studentPanel = document.getElementById('student-panel');
+            if (studentPanel) studentPanel.style.display = 'none';
             hideStudentModal();
+        }
+
+        // Show Student View
+        async function showStudentView() {
+            entryModal.classList.remove('active');
+            loginModal.classList.remove('active');
+            registerModal.classList.remove('active');
+            appContent.style.display = 'none';
+            
+            const studentPanel = document.getElementById('student-panel');
+            if (!studentPanel) return;
+            
+            studentPanel.style.display = 'block';
+            
+            // Find student data by user email or userId
+            try {
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Find student by email or userId
+                let studentData = null;
+                let studentId = null;
+                
+                for (const [id, student] of Object.entries(allStudents)) {
+                    if (student.email === currentUser.email || student.userId === currentUser.uid) {
+                        studentData = student;
+                        studentId = id;
+                        break;
+                    }
+                }
+                
+                if (studentData && studentData.teacherId) {
+                    // Show student panel with their data
+                    await showStudentPanel(studentData.teacherId, studentId);
+                } else {
+                    // Student not found or not linked to a teacher
+                    const panelContent = document.getElementById('student-panel-content');
+                    if (panelContent) {
+                        panelContent.innerHTML = `
+                            <div style="text-align: center; padding: 40px;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning); margin-bottom: 20px;"></i>
+                                <h3 style="margin-bottom: 10px;">Estudiante no encontrado</h3>
+                                <p style="color: var(--gray); margin-bottom: 20px;">
+                                    No se encontró información de estudiante asociada a tu cuenta.
+                                </p>
+                                <p style="color: var(--gray); font-size: 0.9rem;">
+                                    Por favor, contacta a tu docente para que te registre en el sistema.
+                                </p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading student data:', error);
+                const panelContent = document.getElementById('student-panel-content');
+                if (panelContent) {
+                    panelContent.innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--error); margin-bottom: 20px;"></i>
+                            <h3 style="margin-bottom: 10px;">Error al cargar datos</h3>
+                            <p style="color: var(--gray);">Ocurrió un error al cargar tu información. Por favor, intenta nuevamente.</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // Hide Student View
+        function hideStudentView() {
+            const studentPanel = document.getElementById('student-panel');
+            if (studentPanel) studentPanel.style.display = 'none';
         }
 
         function showLogoutModal() {
@@ -1871,11 +1979,11 @@
             const attendanceSection = document.getElementById('attendance');
             if (attendanceSection) {
                 attendanceSection.querySelectorAll('.tab-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const tabId = btn.getAttribute('data-tab');
-                        switchAttendanceTab(tabId);
-                    });
+                btn.addEventListener('click', () => {
+                    const tabId = btn.getAttribute('data-tab');
+                    switchAttendanceTab(tabId);
                 });
+            });
             }
 
             // Initialize QR Scanner
@@ -1920,6 +2028,8 @@
             const email = document.getElementById('register-email').value;
             const password = document.getElementById('register-password').value;
             const confirmPassword = document.getElementById('register-confirm').value;
+            const roleSelect = document.getElementById('register-role');
+            const role = roleSelect ? roleSelect.value : 'teacher';
 
             if (password !== confirmPassword) {
                 showNotification('Las contraseñas no coinciden', 'error');
@@ -1937,7 +2047,7 @@
                 await database.ref('users/' + userCredential.user.uid).set({
                     name: name,
                     email: email,
-                    role: 'teacher',
+                    role: role,
                     createdAt: firebase.database.ServerValue.TIMESTAMP
                 });
 
@@ -2116,22 +2226,22 @@
 
                 let activityHTML = '';
                 activities.forEach(({ date, record }) => {
-                    activityHTML += `
-                        <div style="padding: 12px; border-bottom: 1px solid var(--gray-light); display: flex; align-items: center; gap: 15px;">
-                            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${record.status === 'present' ? 'var(--success)' : 'var(--danger)'};"></div>
-                            <div>
-                                <div style="font-weight: 500;">${record.studentName || 'Estudiante'}</div>
-                                <div style="font-size: 0.85rem; color: var(--gray);">${date} - ${record.course || ''}</div>
-                            </div>
-                            <div style="margin-left: auto; font-size: 0.85rem;">
-                                <span class="status-badge ${record.status === 'present' ? 'status-present' : 'status-absent'}">
+                        activityHTML += `
+                            <div style="padding: 12px; border-bottom: 1px solid var(--gray-light); display: flex; align-items: center; gap: 15px;">
+                                <div style="width: 8px; height: 8px; border-radius: 50%; background: ${record.status === 'present' ? 'var(--success)' : 'var(--danger)'};"></div>
+                                <div>
+                                    <div style="font-weight: 500;">${record.studentName || 'Estudiante'}</div>
+                                    <div style="font-size: 0.85rem; color: var(--gray);">${date} - ${record.course || ''}</div>
+                                </div>
+                                <div style="margin-left: auto; font-size: 0.85rem;">
+                                    <span class="status-badge ${record.status === 'present' ? 'status-present' : 'status-absent'}">
                                     ${record.status === 'present' ? 'Presente' : 
                                       record.status === 'late' ? 'Tardío' :
                                       record.status === 'excused' ? 'Justificado' : 'Ausente'}
-                                </span>
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    `;
+                        `;
                 });
 
                 activityContainer.innerHTML = activityHTML || `
@@ -2297,10 +2407,10 @@
                         video: { facingMode: 'environment' }
                     });
 
-                    scannerActive = true;
+                scannerActive = true;
                     videoStream = stream;
-                    toggleScannerBtn.innerHTML = '<i class="fas fa-stop"></i> Detener Escáner';
-                    scanResult.style.display = 'none';
+                toggleScannerBtn.innerHTML = '<i class="fas fa-stop"></i> Detener Escáner';
+                scanResult.style.display = 'none';
 
                     // Create video element
                     videoElement = document.createElement('video');
@@ -2360,7 +2470,7 @@
             }
 
             function stopScanner() {
-                scannerActive = false;
+                        scannerActive = false;
 
                 // Stop scanning loop
                 if (scanInterval) {
@@ -2382,7 +2492,7 @@
                 // Reset button
                 if (toggleScannerBtn) {
                     toggleScannerBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Escáner';
-                }
+            }
 
                 videoElement = null;
                 canvasElement = null;
@@ -2425,8 +2535,8 @@
                     const studentId = qrInfo.studentId || qrInfo.id || qrData;
                     // Get student to find their teacher
                     const studentRef = database.ref('students/' + studentId);
-                    const studentSnapshot = await studentRef.once('value');
-                    
+                const studentSnapshot = await studentRef.once('value');
+                
                     if (studentSnapshot.exists()) {
                         const student = studentSnapshot.val();
                         if (student.teacherId) {
@@ -2435,7 +2545,7 @@
                             showNotification('Este estudiante no está asignado a un docente', 'error');
                         }
                     } else {
-                        showNotification('Estudiante no encontrado', 'error');
+                    showNotification('Estudiante no encontrado', 'error');
                     }
                     return;
                 }
@@ -2850,9 +2960,40 @@
                 // Setup close button
                 const closeBtn = document.getElementById('student-panel-close');
                 if (closeBtn) {
-                    closeBtn.onclick = () => {
-                        studentPanel.style.display = 'none';
-                        appContent.style.display = 'block';
+                    closeBtn.onclick = async () => {
+                        // Check if user is logged in as student
+                        if (currentUser) {
+                            try {
+                                const userDataSnapshot = await database.ref('users/' + currentUser.uid).once('value');
+                                const userData = userDataSnapshot.val();
+                                const userRole = userData ? userData.role : 'teacher';
+                                
+                                if (userRole === 'student' || userRole === 'estudiante') {
+                                    // Student is logged in, show logout modal
+                                    showLogoutModal();
+                                } else {
+                                    // Coming from QR scan, just close panel
+                                    studentPanel.style.display = 'none';
+                                    appContent.style.display = 'block';
+                                }
+                            } catch (error) {
+                                // On error, just close panel
+                                studentPanel.style.display = 'none';
+                                appContent.style.display = 'block';
+                            }
+                        } else {
+                            // No user logged in, just close panel
+                            studentPanel.style.display = 'none';
+                            appContent.style.display = 'block';
+                        }
+                    };
+                }
+
+                // Setup logout button for student panel
+                const logoutBtn = document.getElementById('student-panel-logout');
+                if (logoutBtn) {
+                    logoutBtn.onclick = () => {
+                        showLogoutModal();
                     };
                 }
 
@@ -3192,7 +3333,7 @@
                     const status = select.value;
                     if (!studentId || !status) continue;
 
-                    try {
+            try {
                         const student = estudiantes.find(s => s.id === studentId);
                         const teacherId = currentUser ? currentUser.uid : (student?.teacherId || null);
                         const teacherName = currentUser ? (currentUser.displayName || 'Docente') : 'Docente';
@@ -3248,8 +3389,8 @@
         async function cargarCiclosDesdeDB() {
             if (Object.keys(ciclosData).length) {
                 poblarSelectCiclos();
-                return;
-            }
+                    return;
+                }
             try {
                 const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
                 const snap = await database.ref(`/carreras/${carreraKey}/ciclos`).once('value');
@@ -3293,8 +3434,8 @@
             if (!cicloNombre) return;
             const entry = Object.values(ciclosData).find(c => (c.nombre === cicloNombre));
             const cursos = entry?.cursos || [];
-            cursos.forEach(c => {
-                if (!c || !c.nombre) return;
+                cursos.forEach(c => {
+                    if (!c || !c.nombre) return;
                 const opt = document.createElement('option');
                 opt.value = c.nombre;
                 opt.textContent = c.nombre;
@@ -3343,7 +3484,7 @@
                 opt.value = s.id;
                 opt.textContent = `${s.names || ''} ${s.lastnames || ''} - ${s.cycle || s.ciclo || ''}`;
                 sel.appendChild(opt);
-            });
+                    });
         }
 
         async function cargarEstudiantesParaGrupo() {
@@ -3462,7 +3603,7 @@
             if (bulkCourse) {
                 bulkCourse.addEventListener('change', () => {
                     cargarEstudiantesParaGrupo();
-                });
+            });
             }
 
             // Set default date for bulk attendance
