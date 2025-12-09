@@ -469,6 +469,25 @@
         </div>
     </div>
 
+    <!-- Teacher Selection Modal -->
+    <div id="teacher-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <button class="modal-close" id="teacher-modal-close">×</button>
+            <h3 style="margin-bottom: 20px;">
+                <i class="fas fa-chalkboard-teacher"></i>
+                Seleccionar Docente
+            </h3>
+            <p style="color: var(--gray); margin-bottom: 25px;">Selecciona tu docente para cargar los ciclos y cursos disponibles</p>
+            
+            <div id="teachers-list" style="max-height: 400px; overflow-y: auto;">
+                <div style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
+                    <p style="margin-top: 15px; color: var(--gray);">Cargando docentes...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Logout Modal -->
     <div id="logout-modal" class="modal-overlay">
         <div class="modal-content">
@@ -553,14 +572,25 @@
                         <div class="tab-content" id="manual-tab">
                             <form id="manual-attendance-form">
                                 <div class="form-group">
+                                    <label class="form-label">Docente</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="manual-teacher-name" class="form-control" placeholder="Selecciona un docente" readonly style="flex: 1;">
+                                        <button type="button" class="btn btn-secondary" id="select-teacher-manual">
+                                            <i class="fas fa-user-tie"></i>
+                                            Seleccionar
+                                        </button>
+                                    </div>
+                                    <input type="hidden" id="manual-teacher-id">
+                                </div>
+                                <div class="form-group">
                                     <label class="form-label">Ciclo</label>
-                                    <select id="manual-cycle" class="form-control" required>
-                                        <option value="">Seleccionar ciclo</option>
+                                    <select id="manual-cycle" class="form-control" required disabled>
+                                        <option value="">Primero selecciona un docente</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Curso</label>
-                                    <select id="manual-course" class="form-control" required>
+                                    <select id="manual-course" class="form-control" required disabled>
                                         <option value="">Primero selecciona un ciclo</option>
                                     </select>
                                 </div>
@@ -584,14 +614,25 @@
                         <div class="tab-content" id="group-tab">
                             <form id="group-attendance-form">
                                 <div class="form-group">
+                                    <label class="form-label">Docente</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="group-teacher-name" class="form-control" placeholder="Selecciona un docente" readonly style="flex: 1;">
+                                        <button type="button" class="btn btn-secondary" id="select-teacher-group">
+                                            <i class="fas fa-user-tie"></i>
+                                            Seleccionar
+                                        </button>
+                                    </div>
+                                    <input type="hidden" id="group-teacher-id">
+                                </div>
+                                <div class="form-group">
                                     <label class="form-label">Ciclo</label>
-                                    <select id="group-cycle" class="form-control" required>
-                                        <option value="">Seleccionar ciclo</option>
+                                    <select id="group-cycle" class="form-control" required disabled>
+                                        <option value="">Primero selecciona un docente</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Curso</label>
-                                    <select id="group-course" class="form-control" required>
+                                    <select id="group-course" class="form-control" required disabled>
                                         <option value="">Primero selecciona un ciclo</option>
                                     </select>
                                 </div>
@@ -639,6 +680,8 @@
         let videoStream = null;
         let scanInterval = null;
         let ciclosData = {};
+        let selectedTeacher = null; // { id, name, data }
+        let teachersList = [];
 
         // DOM Elements
         const entryModal = document.getElementById('entry-modal');
@@ -708,6 +751,184 @@
                 await loadCycles();
             } catch (error) {
                 console.error('Error loading student data:', error);
+            }
+        }
+
+        // Load Teachers
+        async function loadTeachers() {
+            try {
+                const usersSnapshot = await database.ref('users').once('value');
+                const allUsers = usersSnapshot.val() || {};
+                
+                // Filter only teachers
+                teachersList = Object.keys(allUsers)
+                    .map(uid => ({ id: uid, ...allUsers[uid] }))
+                    .filter(user => user.role === 'teacher' || user.role === 'docente');
+                
+                return teachersList;
+            } catch (error) {
+                console.error('Error loading teachers:', error);
+                showNotification('Error al cargar docentes', 'error');
+                return [];
+            }
+        }
+
+        // Show Teacher Selection Modal
+        async function showTeacherModal(context) {
+            try {
+                showLoading(true);
+                const teachers = await loadTeachers();
+                
+                if (teachers.length === 0) {
+                    showNotification('No hay docentes disponibles', 'warning');
+                    showLoading(false);
+                    return;
+                }
+                
+                const teachersListEl = document.getElementById('teachers-list');
+                teachersListEl.innerHTML = teachers.map(teacher => {
+                    const teacherId = teacher.id;
+                    const teacherName = teacher.name || teacher.email || 'Docente';
+                    const teacherInitial = (teacherName).charAt(0).toUpperCase();
+                    
+                    return `
+                    <div class="teacher-item" data-teacher-id="${teacherId}" data-context="${context}" 
+                         style="padding: 15px; margin-bottom: 10px; background: var(--gray-light); border-radius: 8px; cursor: pointer; transition: var(--transition);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2rem;">
+                                ${teacherInitial}
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 1.1rem;">${teacherName}</div>
+                                <div style="color: var(--gray); font-size: 0.9rem;">${teacher.email || ''}</div>
+                            </div>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                `;
+                }).join('');
+                
+                // Add click listeners to teacher items
+                teachersListEl.querySelectorAll('.teacher-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const teacherId = item.getAttribute('data-teacher-id');
+                        const teacherName = item.querySelector('div[style*="font-weight: 600"]').textContent;
+                        const context = item.getAttribute('data-context');
+                        selectTeacher(teacherId, teacherName, context);
+                    });
+                    
+                    item.addEventListener('mouseenter', function() {
+                        this.style.background = 'var(--primary)';
+                        this.style.color = 'white';
+                    });
+                    
+                    item.addEventListener('mouseleave', function() {
+                        this.style.background = 'var(--gray-light)';
+                        this.style.color = 'var(--dark)';
+                    });
+                });
+                
+                document.getElementById('teacher-modal').classList.add('active');
+                showLoading(false);
+            } catch (error) {
+                console.error('Error showing teacher modal:', error);
+                showNotification('Error al cargar docentes', 'error');
+                showLoading(false);
+            }
+        }
+
+        // Select Teacher
+        async function selectTeacher(teacherId, teacherName, context) {
+            try {
+                showLoading(true);
+                
+                // Get teacher data
+                const teacherSnapshot = await database.ref('users/' + teacherId).once('value');
+                const teacherData = teacherSnapshot.val() || {};
+                
+                selectedTeacher = {
+                    id: teacherId,
+                    name: teacherName,
+                    data: teacherData
+                };
+                
+                // Update UI based on context
+                if (context === 'manual') {
+                    document.getElementById('manual-teacher-id').value = teacherId;
+                    document.getElementById('manual-teacher-name').value = teacherName;
+                    document.getElementById('manual-cycle').disabled = false;
+                } else if (context === 'group') {
+                    document.getElementById('group-teacher-id').value = teacherId;
+                    document.getElementById('group-teacher-name').value = teacherName;
+                    document.getElementById('group-cycle').disabled = false;
+                }
+                
+                // Load cycles for this teacher
+                await loadCyclesForTeacher(teacherId, context);
+                
+                // Close modal
+                document.getElementById('teacher-modal').classList.remove('active');
+                showNotification(`Docente seleccionado: ${teacherName}`, 'success');
+                showLoading(false);
+            } catch (error) {
+                console.error('Error selecting teacher:', error);
+                showNotification('Error al seleccionar docente', 'error');
+                showLoading(false);
+            }
+        }
+
+        // Load Cycles for Teacher
+        async function loadCyclesForTeacher(teacherId, context) {
+            try {
+                // Get students for this teacher to find their cycles
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Filter students by teacher
+                const teacherStudents = Object.keys(allStudents)
+                    .map(id => ({ id, ...allStudents[id] }))
+                    .filter(s => s.teacherId === teacherId);
+                
+                // Get unique cycles from teacher's students
+                const cyclesSet = new Set();
+                teacherStudents.forEach(student => {
+                    if (student.cycle) cyclesSet.add(student.cycle);
+                    if (student.ciclo) cyclesSet.add(student.ciclo);
+                });
+                
+                // Also get cycles from cycles collection
+                const cyclesSnapshot = await database.ref('cycles').once('value');
+                const allCycles = cyclesSnapshot.val() || {};
+                
+                // Update cycle select based on context
+                const cycleSelectId = context === 'manual' ? 'manual-cycle' : 'group-cycle';
+                const cycleSelect = document.getElementById(cycleSelectId);
+                
+                if (cycleSelect) {
+                    cycleSelect.innerHTML = '<option value="">Seleccionar ciclo</option>';
+                    
+                    // Add cycles from students
+                    cyclesSet.forEach(cycle => {
+                        const option = document.createElement('option');
+                        option.value = cycle;
+                        option.textContent = cycle;
+                        cycleSelect.appendChild(option);
+                    });
+                    
+                    // Also add cycles from cycles collection
+                    Object.keys(allCycles).forEach(cycleKey => {
+                        const cycle = allCycles[cycleKey];
+                        if (!cyclesSet.has(cycleKey) && !cyclesSet.has(cycle.name)) {
+                            const option = document.createElement('option');
+                            option.value = cycleKey;
+                            option.textContent = cycle.name || cycleKey;
+                            cycleSelect.appendChild(option);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading cycles for teacher:', error);
+                showNotification('Error al cargar ciclos', 'error');
             }
         }
 
@@ -901,6 +1122,45 @@
             // Use flags to track interaction state
             let allowModalClose = true;
             let hasFocusedInput = false;
+            let isDragging = false;
+            let mouseDownX = 0;
+            let mouseDownY = 0;
+            let hasTextSelection = false;
+            
+            // Track text selection
+            document.addEventListener('selectionchange', () => {
+                const selection = window.getSelection();
+                hasTextSelection = selection.toString().length > 0;
+            });
+            
+            // Track mouse drag to detect text selection
+            entryModal.addEventListener('mousedown', (e) => {
+                if (e.target === entryModal) {
+                    isDragging = false;
+                    mouseDownX = e.clientX;
+                    mouseDownY = e.clientY;
+                }
+            });
+            
+            entryModal.addEventListener('mousemove', (e) => {
+                if (e.target === entryModal && (mouseDownX !== 0 || mouseDownY !== 0)) {
+                    const deltaX = Math.abs(e.clientX - mouseDownX);
+                    const deltaY = Math.abs(e.clientY - mouseDownY);
+                    // If mouse moved more than 5px, consider it a drag
+                    if (deltaX > 5 || deltaY > 5) {
+                        isDragging = true;
+                    }
+                }
+            });
+            
+            entryModal.addEventListener('mouseup', (e) => {
+                // Reset drag tracking after a short delay
+                setTimeout(() => {
+                    isDragging = false;
+                    mouseDownX = 0;
+                    mouseDownY = 0;
+                }, 100);
+            });
             
             // Prevent closing when interacting with form elements
             if (modalContent) {
@@ -934,13 +1194,22 @@
             }
             
             entryModal.addEventListener('click', (e) => {
+                // Check if there's selected text
+                const selection = window.getSelection();
+                const hasSelection = selection.toString().length > 0;
+                
                 // Only redirect if:
                 // 1. We're allowing modal close
                 // 2. No input has focus
-                // 3. The click target is exactly the overlay (not any child)
-                // 4. The click is not inside modal content
+                // 3. Not currently dragging (text selection)
+                // 4. No text is selected
+                // 5. The click target is exactly the overlay (not any child)
+                // 6. The click is not inside modal content
                 if (allowModalClose && 
                     !hasFocusedInput &&
+                    !isDragging &&
+                    !hasSelection &&
+                    !hasTextSelection &&
                     e.target === entryModal && 
                     e.target !== modalContent &&
                     (!modalContent || !modalContent.contains(e.target))) {
@@ -969,16 +1238,52 @@
             // QR Scanner
             document.getElementById('start-scanner-btn').addEventListener('click', startQRScanner);
 
+            // Teacher Selection Buttons
+            document.getElementById('select-teacher-manual').addEventListener('click', () => {
+                showTeacherModal('manual');
+            });
+            document.getElementById('select-teacher-group').addEventListener('click', () => {
+                showTeacherModal('group');
+            });
+            
+            // Teacher Modal Close
+            document.getElementById('teacher-modal-close').addEventListener('click', () => {
+                document.getElementById('teacher-modal').classList.remove('active');
+            });
+            
+            // Close teacher modal when clicking outside
+            document.getElementById('teacher-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'teacher-modal') {
+                    document.getElementById('teacher-modal').classList.remove('active');
+                }
+            });
+
             // Manual Attendance Form
             document.getElementById('manual-attendance-form').addEventListener('submit', handleManualAttendance);
-            document.getElementById('manual-cycle').addEventListener('change', (e) => {
-                loadCoursesForCycle(e.target.value, 'manual-course');
+            document.getElementById('manual-cycle').addEventListener('change', async (e) => {
+                const cycleValue = e.target.value;
+                const courseSelect = document.getElementById('manual-course');
+                if (cycleValue && selectedTeacher) {
+                    courseSelect.disabled = false;
+                    await loadCoursesForCycle(cycleValue, 'manual-course', selectedTeacher.id);
+                } else {
+                    courseSelect.disabled = true;
+                    courseSelect.innerHTML = '<option value="">Primero selecciona un ciclo</option>';
+                }
             });
 
             // Group Attendance Form
             document.getElementById('group-attendance-form').addEventListener('submit', handleGroupAttendance);
-            document.getElementById('group-cycle').addEventListener('change', (e) => {
-                loadCoursesForCycle(e.target.value, 'group-course');
+            document.getElementById('group-cycle').addEventListener('change', async (e) => {
+                const cycleValue = e.target.value;
+                const courseSelect = document.getElementById('group-course');
+                if (cycleValue && selectedTeacher) {
+                    courseSelect.disabled = false;
+                    await loadCoursesForCycle(cycleValue, 'group-course', selectedTeacher.id);
+                } else {
+                    courseSelect.disabled = true;
+                    courseSelect.innerHTML = '<option value="">Primero selecciona un ciclo</option>';
+                }
             });
         }
 
@@ -1004,27 +1309,64 @@
             }
         }
 
-        // Load Courses for Cycle
-        function loadCoursesForCycle(cycleKey, selectId) {
+        // Load Courses for Cycle and Teacher
+        async function loadCoursesForCycle(cycleKey, selectId, teacherId) {
             const select = document.getElementById(selectId);
             if (!select) return;
 
             select.innerHTML = '<option value="">Seleccionar curso</option>';
             
-            if (!cycleKey || !ciclosData[cycleKey]) {
+            if (!cycleKey) {
                 return;
             }
 
-            const cycle = ciclosData[cycleKey];
-            const courses = cycle.courses || {};
-
-            Object.keys(courses).forEach(courseKey => {
-                const course = courses[courseKey];
-                const option = document.createElement('option');
-                option.value = courseKey;
-                option.textContent = course.name || courseKey;
-                select.appendChild(option);
-            });
+            try {
+                // Get students for this teacher and cycle to find their courses
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Filter students by teacher and cycle
+                const teacherCycleStudents = Object.keys(allStudents)
+                    .map(id => ({ id, ...allStudents[id] }))
+                    .filter(s => {
+                        const matchesTeacher = s.teacherId === teacherId;
+                        const matchesCycle = (s.cycle === cycleKey || s.ciclo === cycleKey);
+                        return matchesTeacher && matchesCycle;
+                    });
+                
+                // Get unique courses from teacher's students in this cycle
+                const coursesSet = new Set();
+                teacherCycleStudents.forEach(student => {
+                    if (student.course) coursesSet.add(student.course);
+                    if (student.curso) coursesSet.add(student.curso);
+                });
+                
+                // Also get courses from cycles collection
+                const cyclesSnapshot = await database.ref('cycles').once('value');
+                const allCycles = cyclesSnapshot.val() || {};
+                const cycle = allCycles[cycleKey];
+                
+                if (cycle && cycle.courses) {
+                    Object.keys(cycle.courses).forEach(courseKey => {
+                        const course = cycle.courses[courseKey];
+                        coursesSet.add(course.name || courseKey);
+                    });
+                }
+                
+                // Populate select with courses
+                coursesSet.forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course;
+                    option.textContent = course;
+                    select.appendChild(option);
+                });
+                
+                // Enable the select
+                select.disabled = false;
+            } catch (error) {
+                console.error('Error loading courses:', error);
+                showNotification('Error al cargar cursos', 'error');
+            }
         }
 
         // Start QR Scanner
@@ -1159,9 +1501,15 @@
                 return;
             }
 
+            const teacherId = document.getElementById('manual-teacher-id').value;
             const cycle = document.getElementById('manual-cycle').value;
             const course = document.getElementById('manual-course').value;
             const status = document.getElementById('manual-status').value;
+
+            if (!teacherId) {
+                showNotification('Primero selecciona un docente', 'error');
+                return;
+            }
 
             if (!cycle || !course) {
                 showNotification('Selecciona ciclo y curso', 'error');
@@ -1171,13 +1519,16 @@
             try {
                 showLoading(true);
                 const today = new Date().toISOString().split('T')[0];
+                const teacherName = selectedTeacher ? selectedTeacher.name : 'Docente';
+                
                 const attendanceData = {
                     studentId: studentData.id,
                     studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
                     course: course,
                     cycle: cycle,
                     status: status,
-                    teacherId: studentData.teacherId,
+                    teacherId: teacherId,
+                    teacherName: teacherName,
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
                     method: 'manual',
                     markedAt: new Date().toISOString()
@@ -1186,6 +1537,13 @@
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
                 showNotification('Asistencia registrada exitosamente', 'success');
                 e.target.reset();
+                // Reset teacher selection
+                selectedTeacher = null;
+                document.getElementById('manual-teacher-id').value = '';
+                document.getElementById('manual-teacher-name').value = '';
+                document.getElementById('manual-cycle').disabled = true;
+                document.getElementById('manual-cycle').innerHTML = '<option value="">Primero selecciona un docente</option>';
+                document.getElementById('manual-course').innerHTML = '<option value="">Primero selecciona un ciclo</option>';
             } catch (error) {
                 console.error('Error marking attendance:', error);
                 showNotification('Error al registrar asistencia: ' + error.message, 'error');
@@ -1203,9 +1561,15 @@
                 return;
             }
 
+            const teacherId = document.getElementById('group-teacher-id').value;
             const cycle = document.getElementById('group-cycle').value;
             const course = document.getElementById('group-course').value;
             const status = document.getElementById('group-status').value;
+
+            if (!teacherId) {
+                showNotification('Primero selecciona un docente', 'error');
+                return;
+            }
 
             if (!cycle || !course) {
                 showNotification('Selecciona ciclo y curso', 'error');
@@ -1215,13 +1579,16 @@
             try {
                 showLoading(true);
                 const today = new Date().toISOString().split('T')[0];
+                const teacherName = selectedTeacher ? selectedTeacher.name : 'Docente';
+                
                 const attendanceData = {
                     studentId: studentData.id,
                     studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
                     course: course,
                     cycle: cycle,
                     status: status,
-                    teacherId: studentData.teacherId,
+                    teacherId: teacherId,
+                    teacherName: teacherName,
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
                     method: 'group',
                     markedAt: new Date().toISOString()
@@ -1230,6 +1597,13 @@
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
                 showNotification('Asistencia registrada exitosamente', 'success');
                 e.target.reset();
+                // Reset teacher selection
+                selectedTeacher = null;
+                document.getElementById('group-teacher-id').value = '';
+                document.getElementById('group-teacher-name').value = '';
+                document.getElementById('group-cycle').disabled = true;
+                document.getElementById('group-cycle').innerHTML = '<option value="">Primero selecciona un docente</option>';
+                document.getElementById('group-course').innerHTML = '<option value="">Primero selecciona un ciclo</option>';
             } catch (error) {
                 console.error('Error marking attendance:', error);
                 showNotification('Error al registrar asistencia: ' + error.message, 'error');
