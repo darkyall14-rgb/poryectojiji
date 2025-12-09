@@ -524,18 +524,35 @@
     <!-- Teacher Selection Modal -->
     <div id="teacher-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 600px;">
-            <button class="modal-close" id="teacher-modal-close">×</button>
-            <h3 style="margin-bottom: 20px;">
-                <i class="fas fa-chalkboard-teacher"></i>
-                Seleccionar Docente
-            </h3>
-            <p style="color: var(--gray); margin-bottom: 25px;">Selecciona tu docente para cargar los ciclos y cursos disponibles</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0;">
+                        <i class="fas fa-chalkboard-user"></i> Enlazar con Docente
+                    </h3>
+                    <p style="color: var(--gray); font-size: 0.9rem; margin: 0;">Selecciona tu docente para que pueda registrar tu asistencia</p>
+                </div>
+                <button class="modal-close" id="teacher-modal-close" style="position: absolute; right: 15px; top: 15px;">×</button>
+            </div>
             
-            <div id="teachers-list" style="max-height: 400px; overflow-y: auto;">
+            <!-- Search Bar -->
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="teacher-search" class="form-control" placeholder="Buscar docente por nombre o correo..." style="padding: 10px; font-size: 0.9rem;">
+            </div>
+            
+            <!-- Teachers List -->
+            <div id="teachers-list" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--gray-light); border-radius: 8px;">
                 <div style="text-align: center; padding: 40px;">
                     <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
                     <p style="margin-top: 15px; color: var(--gray);">Cargando docentes...</p>
                 </div>
+            </div>
+            
+            <!-- Info Message -->
+            <div style="margin-top: 15px; padding: 12px; background: rgba(67, 97, 238, 0.1); border-left: 3px solid var(--primary); border-radius: 4px;">
+                <p style="margin: 0; font-size: 0.85rem; color: var(--dark);">
+                    <i class="fas fa-info-circle" style="margin-right: 8px; color: var(--primary);"></i>
+                    Una vez enlazado, podrás recibir asistencia de este docente y ver tus calificaciones
+                </p>
             </div>
         </div>
     </div>
@@ -602,7 +619,12 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Docente Asignado</label>
-                        <input type="text" id="profile-teacher" class="form-control" placeholder="Docente" readonly style="padding: 10px; font-size: 0.9rem;">
+                        <div style="display: flex; gap: 8px; align-items: flex-end;">
+                            <input type="text" id="profile-teacher" class="form-control" placeholder="Docente" readonly style="padding: 10px; font-size: 0.9rem; flex: 1;">
+                            <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.85rem; white-space: nowrap;" id="change-teacher-btn">
+                                <i class="fas fa-link"></i> Enlazar
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1170,6 +1192,7 @@
         // Load Teachers
         async function loadTeachers() {
             try {
+                console.log('[DEBUG] Loading teachers list');
                 const usersSnapshot = await database.ref('users').once('value');
                 const allUsers = usersSnapshot.val() || {};
                 
@@ -1178,18 +1201,21 @@
                     .map(uid => ({ id: uid, ...allUsers[uid] }))
                     .filter(user => user.role === 'teacher' || user.role === 'docente');
                 
+                console.log('[DEBUG] Teachers loaded:', teachersList.length);
                 return teachersList;
             } catch (error) {
-                console.error('Error loading teachers:', error);
+                console.error('[ERROR] Error loading teachers:', error);
                 showNotification('Error al cargar docentes', 'error');
                 return [];
             }
         }
 
         // Show Teacher Selection Modal
-        async function showTeacherModal(context) {
+        async function showTeacherModal(context = 'link') {
             try {
                 showLoading(true);
+                console.log('[DEBUG] Opening teacher modal with context:', context);
+                
                 const teachers = await loadTeachers();
                 
                 if (teachers.length === 0) {
@@ -1201,21 +1227,24 @@
                 const teachersListEl = document.getElementById('teachers-list');
                 teachersListEl.innerHTML = teachers.map(teacher => {
                     const teacherId = teacher.id;
-                    const teacherName = teacher.name || teacher.email || 'Docente';
-                    const teacherInitial = (teacherName).charAt(0).toUpperCase();
+                    const teacherName = (teacher.name || '') + (teacher.lastname ? ' ' + teacher.lastname : '');
+                    const displayName = teacherName.trim() || teacher.email || 'Docente';
+                    const teacherInitial = (displayName).charAt(0).toUpperCase();
+                    const specialization = teacher.specialization ? `<div style="color: var(--primary); font-size: 0.8rem; margin-top: 3px;">${teacher.specialization}</div>` : '';
                     
                     return `
                     <div class="teacher-item" data-teacher-id="${teacherId}" data-context="${context}" 
-                         style="padding: 15px; margin-bottom: 10px; background: var(--gray-light); border-radius: 8px; cursor: pointer; transition: var(--transition);">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2rem;">
-                                ${teacherInitial}
-                            </div>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; font-size: 1.1rem;">${teacherName}</div>
-                                <div style="color: var(--gray); font-size: 0.9rem;">${teacher.email || ''}</div>
-                            </div>
-                            <i class="fas fa-chevron-right"></i>
+                         style="padding: 15px; margin-bottom: 8px; background: white; border: 1px solid var(--gray-light); border-radius: 8px; cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 15px;">
+                        <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2rem; flex-shrink: 0;">
+                            ${teacherInitial}
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 1rem;">${displayName}</div>
+                            ${specialization}
+                            <div style="color: var(--gray); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${teacher.email || ''}</div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${context === 'link' ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem; white-space: nowrap;"><i class="fas fa-link"></i> Enlazar</button>` : '<i class="fas fa-chevron-right"></i>'}
                         </div>
                     </div>
                 `;
@@ -1231,29 +1260,42 @@
                     });
                     
                     item.addEventListener('mouseenter', function() {
-                        this.style.background = 'var(--primary)';
-                        this.style.color = 'white';
+                        this.style.boxShadow = 'var(--shadow)';
+                        this.style.transform = 'translateY(-2px)';
                     });
                     
                     item.addEventListener('mouseleave', function() {
-                        this.style.background = 'var(--gray-light)';
-                        this.style.color = 'var(--dark)';
+                        this.style.boxShadow = 'none';
+                        this.style.transform = 'translateY(0)';
                     });
                 });
+                
+                // Add search functionality
+                const searchInput = document.getElementById('teacher-search');
+                if (searchInput) {
+                    searchInput.addEventListener('input', (e) => {
+                        const searchTerm = e.target.value.toLowerCase();
+                        document.querySelectorAll('.teacher-item').forEach(item => {
+                            const text = item.textContent.toLowerCase();
+                            item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                        });
+                    });
+                }
                 
                 document.getElementById('teacher-modal').classList.add('active');
                 showLoading(false);
             } catch (error) {
-                console.error('Error showing teacher modal:', error);
+                console.error('[ERROR] Error showing teacher modal:', error);
                 showNotification('Error al cargar docentes', 'error');
                 showLoading(false);
             }
         }
 
         // Select Teacher
-        async function selectTeacher(teacherId, teacherName, context) {
+        async function selectTeacher(teacherId, teacherName, context = 'link') {
             try {
                 showLoading(true);
+                console.log('[DEBUG] Selecting teacher:', { teacherId, teacherName, context });
                 
                 // Get teacher data
                 const teacherSnapshot = await database.ref('users/' + teacherId).once('value');
@@ -1265,8 +1307,32 @@
                     data: teacherData
                 };
                 
-                // Update UI based on context
-                if (context === 'manual') {
+                // Update based on context
+                if (context === 'link') {
+                    // Link student to teacher
+                    if (!studentData) {
+                        showNotification('No se encontró tu información de estudiante', 'error');
+                        showLoading(false);
+                        return;
+                    }
+                    
+                    console.log('[DEBUG] Linking student to teacher:', studentData.id, '→', teacherId);
+                    
+                    // Update student data in Firebase
+                    await database.ref('students/' + studentData.id).update({
+                        teacherId: teacherId,
+                        linkedAt: firebase.database.ServerValue.TIMESTAMP
+                    });
+                    
+                    // Update local studentData
+                    studentData.teacherId = teacherId;
+                    
+                    // Update profile display
+                    document.getElementById('profile-teacher').value = teacherName;
+                    
+                    console.log('[SUCCESS] Student linked to teacher successfully');
+                    showNotification(`¡Enlazado correctamente con ${teacherName}!`, 'success');
+                } else if (context === 'manual') {
                     document.getElementById('manual-teacher-id').value = teacherId;
                     document.getElementById('manual-teacher-name').value = teacherName;
                     document.getElementById('manual-cycle').disabled = false;
@@ -1276,16 +1342,17 @@
                     document.getElementById('group-cycle').disabled = false;
                 }
                 
-                // Load cycles for this teacher
-                await loadCyclesForTeacher(teacherId, context);
+                // Load cycles for this teacher if not link context
+                if (context !== 'link') {
+                    await loadCyclesForTeacher(teacherId, context);
+                }
                 
                 // Close modal
                 document.getElementById('teacher-modal').classList.remove('active');
-                showNotification(`Docente seleccionado: ${teacherName}`, 'success');
                 showLoading(false);
             } catch (error) {
-                console.error('Error selecting teacher:', error);
-                showNotification('Error al seleccionar docente', 'error');
+                console.error('[ERROR] Error selecting teacher:', error);
+                showNotification('Error al seleccionar docente: ' + error.message, 'error');
                 showLoading(false);
             }
         }
@@ -1689,6 +1756,16 @@
             if (profileCloseBtn) profileCloseBtn.addEventListener('click', () => profileModal.classList.remove('active'));
             if (cancelProfileBtn) cancelProfileBtn.addEventListener('click', () => profileModal.classList.remove('active'));
             if (saveProfileBtn) saveProfileBtn.addEventListener('click', saveStudentProfile);
+            
+            // Link Teacher Button
+            const changeTeacherBtn = document.getElementById('change-teacher-btn');
+            if (changeTeacherBtn) {
+                changeTeacherBtn.addEventListener('click', () => {
+                    profileModal.classList.remove('active');
+                    showTeacherModal('link');
+                });
+            }
+            
             if (profileModal) {
                 profileModal.addEventListener('click', (e) => {
                     if (e.target === profileModal) {
