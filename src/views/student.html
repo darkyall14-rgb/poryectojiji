@@ -944,11 +944,19 @@
                 const teacherId = urlParams.get('teacherId');
                 const qrId = urlParams.get('qrId');
                 
+                console.log('[DEBUG] QR URL parameters:', { teacherId, qrId });
                 if (teacherId && currentUser) {
                     // Wait for student data to load
                     if (!studentData) {
                         await loadStudentData();
                     }
+                    
+                    console.log('[DEBUG] Checking QR attendance eligibility:', {
+                        studentData: !!studentData,
+                        studentTeacherId: studentData?.teacherId,
+                        qrTeacherId: teacherId,
+                        canMark: studentData && (!studentData.teacherId || studentData.teacherId === teacherId)
+                    });
                     
                     // Automatically mark attendance if student is linked to this teacher or not linked yet
                     if (studentData && (!studentData.teacherId || studentData.teacherId === teacherId)) {
@@ -957,6 +965,7 @@
                         window.history.replaceState({}, document.title, window.location.pathname);
                     } else if (!studentData) {
                         // If student not in database, show message
+                        console.error('[ERROR] Student data not found');
                         showNotification('Primero debes estar registrado como estudiante', 'warning');
                     }
                 }
@@ -968,28 +977,35 @@
         // Load Student Data
         async function loadStudentData() {
             try {
+                console.log('[DEBUG] Loading student data for user:', currentUser?.uid);
+                
                 const studentsSnapshot = await database.ref('students').once('value');
                 const allStudents = studentsSnapshot.val() || {};
                 
-                // Find student by email, userId, or currentUser.uid
+                console.log('[DEBUG] Total students in database:', Object.keys(allStudents).length);
+                
+                // Find student by userId (primary method), email, or current user UID
                 for (const [id, student] of Object.entries(allStudents)) {
-                    // Match by email, userId, or current user UID
-                    if (student.email === currentUser.email || 
-                        student.userId === currentUser.uid || 
-                        currentUser.uid === currentUser.uid) { // Direct match with current user
+                    console.log('[DEBUG] Checking student:', { id, userId: student.userId, email: student.email });
+                    
+                    // Match by userId first (most reliable)
+                    if (student.userId === currentUser.uid) {
+                        console.log('[DEBUG] Student matched by userId:', id);
+                        studentData = { id, ...student };
+                        break;
+                    }
+                    // Then try email
+                    if (student.email === currentUser.email) {
+                        console.log('[DEBUG] Student matched by email:', id);
                         studentData = { id, ...student };
                         break;
                     }
                 }
                 
-                // If still not found, try to match by current user's UID directly
-                if (!studentData) {
-                    for (const [id, student] of Object.entries(allStudents)) {
-                        if (student.userId === currentUser.uid) {
-                            studentData = { id, ...student };
-                            break;
-                        }
-                    }
+                if (studentData) {
+                    console.log('[DEBUG] Student data loaded:', { id: studentData.id, teacherId: studentData.teacherId, names: studentData.names });
+                } else {
+                    console.warn('[WARN] No student data found for user:', currentUser?.uid);
                 }
 
                 if (studentData) {
@@ -1929,35 +1945,59 @@
 
         // Mark Attendance from QR
         async function markAttendanceFromQR(teacherId, qrId = null) {
+            console.log('[DEBUG] markAttendanceFromQR called with:', { teacherId, qrId, studentData });
+            
             if (!studentData) {
+                console.error('[ERROR] No student data found');
                 showNotification('No se encontró tu información de estudiante. Contacta a tu docente.', 'error');
                 return;
             }
 
+            // Improved validation: if student has a teacherId, it must match the QR teacherId
+            // If student doesn't have a teacherId, allow the attendance from any teacher (for now)
             if (studentData.teacherId && studentData.teacherId !== teacherId) {
-                showNotification('Este código QR no corresponde a tu docente', 'error');
+                console.error('[ERROR] QR teacherId mismatch:', { 
+                    studentTeacherId: studentData.teacherId, 
+                    qrTeacherId: teacherId 
+                });
+                showNotification('Este código QR no corresponde a tu docente asignado', 'error');
                 return;
             }
+
+            console.log('[DEBUG] Student validation passed, proceeding with QR check');
 
             try {
                 const today = new Date().toISOString().split('T')[0];
                 
                 // Check if QR is valid (if qrId provided)
                 if (qrId) {
+                    console.log('[DEBUG] Validating QR code with ID:', qrId);
                     const qrRef = database.ref('qr-codes/' + teacherId + '/' + qrId);
                     const qrSnapshot = await qrRef.once('value');
                     const qrData = qrSnapshot.val();
+                    
+                    console.log('[DEBUG] QR data from database:', qrData);
+                    
+                    if (!qrData) {
+                        console.error('[ERROR] QR code not found in database');
+                        showNotification('Este código QR no existe o ha sido eliminado', 'error');
+                        return;
+                    }
                     
                     if (qrData) {
                         // Check if QR is expired
                         if (qrData.validUntil) {
                             const validUntil = new Date(qrData.validUntil);
                             if (new Date() > validUntil) {
+                                console.error('[ERROR] QR expired at:', qrData.validUntil);
                                 showNotification('Este código QR ha expirado', 'error');
                                 return;
                             }
                         }
+                        console.log('[SUCCESS] QR validation passed');
                     }
+                } else {
+                    console.log('[DEBUG] No QR ID provided, allowing attendance without QR validation');
                 }
                 
                 const attendanceData = {

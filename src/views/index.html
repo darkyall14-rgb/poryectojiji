@@ -3030,13 +3030,22 @@
             
             // Save QR to history
             try {
-                await database.ref('qr-codes/' + currentUser.uid + '/' + qrId).set({
+                const qrDataToSave = {
                     ...qrData,
                     createdAt: firebase.database.ServerValue.TIMESTAMP
+                };
+                console.log('[DEBUG] Saving QR code to database:', {
+                    path: 'qr-codes/' + currentUser.uid + '/' + qrId,
+                    data: qrDataToSave
                 });
+                
+                await database.ref('qr-codes/' + currentUser.uid + '/' + qrId).set(qrDataToSave);
                 currentQRId = qrId;
+                
+                console.log('[SUCCESS] QR code saved successfully with ID:', qrId);
             } catch (error) {
-                console.error('Error saving QR to history:', error);
+                console.error('[ERROR] Error saving QR to history:', error);
+                showNotification('Error al guardar el código QR en el historial', 'error');
             }
             
             try {
