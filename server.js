@@ -273,6 +273,15 @@ app.get('/', (req, res) => {
   }
 });
 
+// Servir index.html explícitamente
+app.get('/index.html', (req, res) => {
+  try {
+    res.sendFile(path.join(__dirname, 'src', 'views', 'index.html'));
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo enviar index.html', message: err.message });
+  }
+});
+
 // Servir student.html
 app.get('/student.html', (req, res) => {
   try {
