@@ -433,6 +433,10 @@
                     <i class="fas fa-sign-in-alt"></i>
                     Iniciar Sesión
                 </button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" id="back-to-main">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al Inicio
+                </button>
             </form>
 
             <!-- Register Form -->
@@ -456,6 +460,10 @@
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
                     <i class="fas fa-user-plus"></i>
                     Crear Cuenta de Estudiante
+                </button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" id="back-to-main-register">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al Inicio
                 </button>
             </form>
         </div>
@@ -788,6 +796,26 @@
 
             // Register Form
             document.getElementById('register-form').addEventListener('submit', handleRegister);
+
+            // Close button - Return to main page
+            document.getElementById('entry-close').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+
+            // Back buttons - Return to main page
+            document.getElementById('back-to-main').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+            document.getElementById('back-to-main-register').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+
+            // Close modal when clicking outside
+            entryModal.addEventListener('click', (e) => {
+                if (e.target === entryModal) {
+                    window.location.href = 'index.html';
+                }
+            });
 
             // User Menu
             userMenu.addEventListener('click', () => {
