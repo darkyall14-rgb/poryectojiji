@@ -750,8 +750,9 @@
 
         // Setup Event Listeners
         function setupEventListeners() {
-            // Tab switching
-            document.getElementById('tab-login').addEventListener('click', () => {
+            // Tab switching - Use capture phase to execute before stopPropagation
+            document.getElementById('tab-login').addEventListener('click', (e) => {
+                e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
                 document.getElementById('tab-login').classList.add('active');
                 document.getElementById('tab-login').style.borderBottomColor = 'var(--primary)';
                 document.getElementById('tab-login').style.color = 'var(--dark)';
@@ -760,9 +761,10 @@
                 document.getElementById('tab-register').style.color = 'var(--gray)';
                 document.getElementById('login-form').style.display = 'block';
                 document.getElementById('register-form').style.display = 'none';
-            });
+            }, true); // Use capture phase
 
-            document.getElementById('tab-register').addEventListener('click', () => {
+            document.getElementById('tab-register').addEventListener('click', (e) => {
+                e.stopPropagation(); // Stop propagation to overlay, but allow this handler to execute
                 document.getElementById('tab-register').classList.add('active');
                 document.getElementById('tab-register').style.borderBottomColor = 'var(--primary)';
                 document.getElementById('tab-register').style.color = 'var(--dark)';
@@ -771,25 +773,28 @@
                 document.getElementById('tab-login').style.color = 'var(--gray)';
                 document.getElementById('register-form').style.display = 'block';
                 document.getElementById('login-form').style.display = 'none';
-            });
+            }, true); // Use capture phase
 
-            // Prevent form clicks from propagating
+            // Prevent form clicks from propagating (but allow tab buttons to work)
             loginForm.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.stopImmediatePropagation();
+                // Don't stop if clicking on tab buttons
+                if (!e.target.closest('#tab-login, #tab-register')) {
+                    e.stopPropagation();
+                }
             }, true);
             
             const registerForm = document.getElementById('register-form');
             registerForm.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.stopImmediatePropagation();
+                // Don't stop if clicking on tab buttons
+                if (!e.target.closest('#tab-login, #tab-register')) {
+                    e.stopPropagation();
+                }
             }, true);
 
             // Login Form
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
                 const email = document.getElementById('login-email').value;
                 const password = document.getElementById('login-password').value;
 
@@ -829,21 +834,39 @@
             
             // Stop all event propagation from modal content and all its children
             if (modalContent) {
+                // Exclude tab buttons from stopPropagation
+                const tabButtonIds = ['tab-login', 'tab-register'];
+                
                 // Use capture phase to stop events before they bubble to overlay
                 const stopPropagation = (e) => {
+                    // Don't stop propagation for tab buttons - let their handlers execute first
+                    const targetId = e.target.id;
+                    const isTabButton = tabButtonIds.includes(targetId);
+                    const isInsideTabButton = e.target.closest('#tab-login, #tab-register');
+                    
+                    if (isTabButton || isInsideTabButton) {
+                        return; // Allow tab button clicks to propagate to their handlers
+                    }
+                    
                     e.stopPropagation();
-                    e.stopImmediatePropagation();
+                    // Don't use stopImmediatePropagation here to allow other handlers to run
                 };
                 
                 ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(eventType => {
                     modalContent.addEventListener(eventType, stopPropagation, true);
                 });
                 
-                // Also add to all form elements
-                const formElements = modalContent.querySelectorAll('input, button, select, textarea, form');
+                // Also add to all form elements, but exclude tab buttons
+                const formElements = modalContent.querySelectorAll('input, button:not(#tab-login):not(#tab-register), select, textarea, form');
                 formElements.forEach(el => {
+                    // Skip if it's a tab button
+                    if (tabButtonIds.includes(el.id)) {
+                        return;
+                    }
                     ['click', 'mousedown', 'mouseup', 'focus', 'blur'].forEach(eventType => {
-                        el.addEventListener(eventType, stopPropagation, true);
+                        el.addEventListener(eventType, (e) => {
+                            e.stopPropagation();
+                        }, true);
                     });
                 });
             }
@@ -1151,7 +1174,6 @@
         async function handleRegister(e) {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
             const name = document.getElementById('register-name').value.trim();
             const email = document.getElementById('register-email').value.trim();
             const password = document.getElementById('register-password').value;
