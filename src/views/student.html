@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduQR - Panel de Estudiante</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --secondary: #3a0ca3;
+            --accent: #f72585;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --danger: #f94144;
+            --dark: #1a1a2e;
+            --dark-light: #16213e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gray-light: #e9ecef;
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.15);
+            --radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+            transition: var(--transition);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            background: white;
+            box-shadow: var(--shadow);
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-decoration: none;
+            color: var(--dark);
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .logo-text h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .logo-text p {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin: 0;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .user-menu:hover {
+            background: var(--gray-light);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Cards */
+        .dashboard-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 30px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            margin-top: 20px;
+        }
+
+        .tabs-header {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid var(--gray-light);
+            margin-bottom: 25px;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--gray);
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--gray-light);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background: var(--gray-light);
+            color: var(--dark);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        /* QR Scanner */
+        #qr-reader-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        #qr-video {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            z-index: 10001;
+            display: none;
+            align-items: center;
+            gap: 15px;
+            min-width: 300px;
+            max-width: 500px;
+        }
+
+        .notification.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .notification.error {
+            border-left: 4px solid var(--danger);
+        }
+
+        .notification.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        /* Entry Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            display: none;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--radius);
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray);
+        }
+
+        /* Student List */
+        .student-list {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .student-item {
+            padding: 15px;
+            background: var(--gray-light);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .student-checkbox {
+            margin-right: 15px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div style="text-align: center;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 15px;"></i>
+            <div>Cargando...</div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification">
+        <i class="fas fa-info-circle"></i>
+        <div>
+            <div id="notification-title" style="font-weight: 600; margin-bottom: 5px;"></div>
+            <div id="notification-message"></div>
+        </div>
+    </div>
+
+    <!-- Entry Modal (Login) -->
+    <div id="entry-modal" class="modal-overlay active">
+        <div class="modal-content">
+            <button class="modal-close" id="entry-close">×</button>
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div class="logo-icon" style="margin: 0 auto 20px;">
+                    <i class="fas fa-user-graduate"></i>
+                </div>
+                <h2 style="margin-bottom: 10px;">Panel de Estudiante</h2>
+                <p style="color: var(--gray);">Inicia sesión para registrar tu asistencia</p>
+            </div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label">Correo Electrónico</label>
+                    <input type="email" id="login-email" class="form-control" placeholder="tu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contraseña</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Tu contraseña" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Iniciar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logout Modal -->
+    <div id="logout-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close" id="logout-close">×</button>
+            <h3 style="margin-bottom: 15px;">Cerrar Sesión</h3>
+            <p style="color: var(--gray); margin-bottom: 25px;">¿Estás seguro de que deseas cerrar sesión?</p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" id="logout-cancel" style="flex: 1;">Cancelar</button>
+                <button class="btn btn-danger" id="logout-confirm" style="flex: 1;">Cerrar Sesión</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app-content" style="display: none;">
+        <header>
+            <div class="container header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-qrcode"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h1>EduQR</h1>
+                        <p>Panel de Estudiante</p>
+                    </div>
+                </div>
+                
+                <div class="user-menu" id="user-menu">
+                    <div class="user-avatar" id="user-avatar">E</div>
+                    <div>
+                        <div id="user-name" style="font-weight: 500;">Estudiante</div>
+                        <div style="font-size: 0.85rem; color: var(--gray);">Estudiante</div>
+                    </div>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="container">
+                <div class="dashboard-card">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard-check"></i>
+                        Registro de Asistencia
+                    </h2>
+
+                    <div class="tabs-container">
+                        <div class="tabs-header">
+                            <button class="tab-btn active" data-tab="qr-tab">
+                                <i class="fas fa-qrcode"></i>
+                                Escanear QR
+                            </button>
+                            <button class="tab-btn" data-tab="manual-tab">
+                                <i class="fas fa-edit"></i>
+                                Manual
+                            </button>
+                            <button class="tab-btn" data-tab="group-tab">
+                                <i class="fas fa-users"></i>
+                                Por Grupo
+                            </button>
+                        </div>
+
+                        <!-- QR Tab -->
+                        <div class="tab-content active" id="qr-tab">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <h3 style="margin-bottom: 10px;">Escanear Código QR</h3>
+                                <p style="color: var(--gray);">Escanea el código QR proporcionado por tu docente</p>
+                            </div>
+                            
+                            <div id="qr-reader-container">
+                                <button class="btn btn-primary" id="start-scanner-btn" style="width: 100%; margin-bottom: 20px;">
+                                    <i class="fas fa-camera"></i>
+                                    Iniciar Escáner
+                                </button>
+                                <video id="qr-video" style="display: none; width: 100%; max-width: 500px; margin: 0 auto;"></video>
+                                <canvas id="qr-canvas" style="display: none;"></canvas>
+                                <div id="scan-result" style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 8px; display: none;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Tab -->
+                        <div class="tab-content" id="manual-tab">
+                            <form id="manual-attendance-form">
+                                <div class="form-group">
+                                    <label class="form-label">Ciclo</label>
+                                    <select id="manual-cycle" class="form-control" required>
+                                        <option value="">Seleccionar ciclo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Curso</label>
+                                    <select id="manual-course" class="form-control" required>
+                                        <option value="">Primero selecciona un ciclo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Estado</label>
+                                    <select id="manual-status" class="form-control" required>
+                                        <option value="present">Presente</option>
+                                        <option value="late">Tardío</option>
+                                        <option value="excused">Justificado</option>
+                                        <option value="absent">Ausente</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fas fa-save"></i>
+                                    Registrar Asistencia
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Group Tab -->
+                        <div class="tab-content" id="group-tab">
+                            <form id="group-attendance-form">
+                                <div class="form-group">
+                                    <label class="form-label">Ciclo</label>
+                                    <select id="group-cycle" class="form-control" required>
+                                        <option value="">Seleccionar ciclo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Curso</label>
+                                    <select id="group-course" class="form-control" required>
+                                        <option value="">Primero selecciona un ciclo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Estado</label>
+                                    <select id="group-status" class="form-control" required>
+                                        <option value="present">Presente</option>
+                                        <option value="late">Tardío</option>
+                                        <option value="excused">Justificado</option>
+                                        <option value="absent">Ausente</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fas fa-save"></i>
+                                    Registrar Asistencia
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC7-a1mwVT-OuiBaik7YYP5KyK4XUPKqvI",
+            authDomain: "xanes-36606.firebaseapp.com",
+            databaseURL: "https://xanes-36606-default-rtdb.firebaseio.com",
+            projectId: "xanes-36606",
+            storageBucket: "xanes-36606.firebasestorage.app",
+            messagingSenderId: "853187362328",
+            appId: "1:853187362328:web:ce602f8be9a2293e9ecd6d"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const database = firebase.database();
+
+        // State
+        let currentUser = null;
+        let studentData = null;
+        let videoStream = null;
+        let scanInterval = null;
+        let ciclosData = {};
+
+        // DOM Elements
+        const entryModal = document.getElementById('entry-modal');
+        const appContent = document.getElementById('app-content');
+        const loginForm = document.getElementById('login-form');
+        const userMenu = document.getElementById('user-menu');
+        const logoutModal = document.getElementById('logout-modal');
+        const logoutConfirmBtn = document.getElementById('logout-confirm');
+        const logoutCancelBtn = document.getElementById('logout-cancel');
+        const logoutCloseBtn = document.getElementById('logout-close');
+
+        // Initialize App
+        function initApp() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    // Check if user is a student
+                    try {
+                        const userDataSnapshot = await database.ref('users/' + user.uid).once('value');
+                        const userData = userDataSnapshot.val();
+                        const userRole = userData ? userData.role : null;
+
+                        if (userRole === 'student' || userRole === 'estudiante') {
+                            currentUser = user;
+                            await loadStudentData();
+                            showApp();
+                        } else {
+                            // Not a student, redirect to teacher page
+                            showNotification('Esta cuenta no es de estudiante. Redirigiendo...', 'warning');
+                            setTimeout(() => {
+                                window.location.href = 'index.html';
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        console.error('Error checking user role:', error);
+                        showNotification('Error al verificar el rol del usuario', 'error');
+                    }
+                } else {
+                    showEntryModal();
+                }
+            });
+
+            setupEventListeners();
+        }
+
+        // Load Student Data
+        async function loadStudentData() {
+            try {
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Find student by email or userId
+                for (const [id, student] of Object.entries(allStudents)) {
+                    if (student.email === currentUser.email || student.userId === currentUser.uid) {
+                        studentData = { id, ...student };
+                        break;
+                    }
+                }
+
+                if (studentData) {
+                    document.getElementById('user-name').textContent = `${studentData.names || ''} ${studentData.lastnames || ''}`.trim() || currentUser.displayName || 'Estudiante';
+                    document.getElementById('user-avatar').textContent = (studentData.names || 'E').charAt(0).toUpperCase();
+                } else {
+                    document.getElementById('user-name').textContent = currentUser.displayName || 'Estudiante';
+                }
+
+                // Load cycles and courses
+                await loadCycles();
+            } catch (error) {
+                console.error('Error loading student data:', error);
+            }
+        }
+
+        // Load Cycles
+        async function loadCycles() {
+            try {
+                const cyclesSnapshot = await database.ref('cycles').once('value');
+                ciclosData = cyclesSnapshot.val() || {};
+                
+                const cycleSelects = ['manual-cycle', 'group-cycle'];
+                cycleSelects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    if (select) {
+                        select.innerHTML = '<option value="">Seleccionar ciclo</option>';
+                        Object.keys(ciclosData).forEach(cycleKey => {
+                            const cycle = ciclosData[cycleKey];
+                            const option = document.createElement('option');
+                            option.value = cycleKey;
+                            option.textContent = cycle.name || cycleKey;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading cycles:', error);
+            }
+        }
+
+        // Show Entry Modal
+        function showEntryModal() {
+            entryModal.classList.add('active');
+            appContent.style.display = 'none';
+        }
+
+        // Show App
+        function showApp() {
+            entryModal.classList.remove('active');
+            appContent.style.display = 'block';
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // Login Form
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+
+                try {
+                    showLoading(true);
+                    await auth.signInWithEmailAndPassword(email, password);
+                    showNotification('¡Bienvenido!', 'success');
+                } catch (error) {
+                    showNotification(error.message, 'error');
+                } finally {
+                    showLoading(false);
+                }
+            });
+
+            // User Menu
+            userMenu.addEventListener('click', () => {
+                logoutModal.classList.add('active');
+            });
+
+            // Logout
+            logoutConfirmBtn.addEventListener('click', handleLogout);
+            logoutCancelBtn.addEventListener('click', () => logoutModal.classList.remove('active'));
+            logoutCloseBtn.addEventListener('click', () => logoutModal.classList.remove('active'));
+
+            // Tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabId = btn.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+
+            // QR Scanner
+            document.getElementById('start-scanner-btn').addEventListener('click', startQRScanner);
+
+            // Manual Attendance Form
+            document.getElementById('manual-attendance-form').addEventListener('submit', handleManualAttendance);
+            document.getElementById('manual-cycle').addEventListener('change', (e) => {
+                loadCoursesForCycle(e.target.value, 'manual-course');
+            });
+
+            // Group Attendance Form
+            document.getElementById('group-attendance-form').addEventListener('submit', handleGroupAttendance);
+            document.getElementById('group-cycle').addEventListener('change', (e) => {
+                loadCoursesForCycle(e.target.value, 'group-course');
+            });
+        }
+
+        // Switch Tab
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('active');
+                }
+            });
+
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                }
+            });
+
+            // Stop scanner if switching away from QR tab
+            if (tabId !== 'qr-tab') {
+                stopQRScanner();
+            }
+        }
+
+        // Load Courses for Cycle
+        function loadCoursesForCycle(cycleKey, selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Seleccionar curso</option>';
+            
+            if (!cycleKey || !ciclosData[cycleKey]) {
+                return;
+            }
+
+            const cycle = ciclosData[cycleKey];
+            const courses = cycle.courses || {};
+
+            Object.keys(courses).forEach(courseKey => {
+                const course = courses[courseKey];
+                const option = document.createElement('option');
+                option.value = courseKey;
+                option.textContent = course.name || courseKey;
+                select.appendChild(option);
+            });
+        }
+
+        // Start QR Scanner
+        async function startQRScanner() {
+            try {
+                const video = document.getElementById('qr-video');
+                const canvas = document.getElementById('qr-canvas');
+                const ctx = canvas.getContext('2d');
+                const startBtn = document.getElementById('start-scanner-btn');
+
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                
+                videoStream = stream;
+                video.srcObject = stream;
+                video.style.display = 'block';
+                startBtn.style.display = 'none';
+
+                video.play();
+
+                scanInterval = setInterval(() => {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                        if (code) {
+                            handleQRScan(code.data);
+                        }
+                    }
+                }, 100);
+            } catch (error) {
+                console.error('Error starting scanner:', error);
+                showNotification('Error al acceder a la cámara: ' + error.message, 'error');
+            }
+        }
+
+        // Stop QR Scanner
+        function stopQRScanner() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            const video = document.getElementById('qr-video');
+            const startBtn = document.getElementById('start-scanner-btn');
+            if (video) video.style.display = 'none';
+            if (startBtn) startBtn.style.display = 'block';
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+        }
+
+        // Handle QR Scan
+        async function handleQRScan(qrData) {
+            try {
+                showLoading(true);
+                stopQRScanner();
+
+                let qrInfo;
+                try {
+                    qrInfo = JSON.parse(qrData);
+                } catch (e) {
+                    if (qrData.includes('teacherId')) {
+                        const urlParams = new URLSearchParams(qrData.split('?')[1] || '');
+                        qrInfo = {
+                            type: 'student-panel',
+                            teacherId: urlParams.get('teacherId') || qrData
+                        };
+                    } else {
+                        showNotification('Código QR no reconocido', 'error');
+                        return;
+                    }
+                }
+
+                if (qrInfo.type === 'student-panel' && qrInfo.teacherId) {
+                    await markAttendanceFromQR(qrInfo.teacherId);
+                } else {
+                    showNotification('Código QR no válido', 'error');
+                }
+            } catch (error) {
+                console.error('Error handling QR scan:', error);
+                showNotification('Error al procesar el código QR: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Mark Attendance from QR
+        async function markAttendanceFromQR(teacherId) {
+            if (!studentData) {
+                showNotification('No se encontró tu información de estudiante. Contacta a tu docente.', 'error');
+                return;
+            }
+
+            if (studentData.teacherId !== teacherId) {
+                showNotification('Este código QR no corresponde a tu docente', 'error');
+                return;
+            }
+
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceData = {
+                    studentId: studentData.id,
+                    studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
+                    course: studentData.course || studentData.curso || '',
+                    cycle: studentData.cycle || studentData.ciclo || '',
+                    status: 'present',
+                    teacherId: teacherId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    method: 'qr',
+                    markedAt: new Date().toISOString()
+                };
+
+                await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
+                showNotification('Asistencia registrada exitosamente', 'success');
+            } catch (error) {
+                console.error('Error marking attendance:', error);
+                showNotification('Error al registrar asistencia: ' + error.message, 'error');
+            }
+        }
+
+        // Handle Manual Attendance
+        async function handleManualAttendance(e) {
+            e.preventDefault();
+            
+            if (!studentData) {
+                showNotification('No se encontró tu información de estudiante', 'error');
+                return;
+            }
+
+            const cycle = document.getElementById('manual-cycle').value;
+            const course = document.getElementById('manual-course').value;
+            const status = document.getElementById('manual-status').value;
+
+            if (!cycle || !course) {
+                showNotification('Selecciona ciclo y curso', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceData = {
+                    studentId: studentData.id,
+                    studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
+                    course: course,
+                    cycle: cycle,
+                    status: status,
+                    teacherId: studentData.teacherId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    method: 'manual',
+                    markedAt: new Date().toISOString()
+                };
+
+                await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
+                showNotification('Asistencia registrada exitosamente', 'success');
+                e.target.reset();
+            } catch (error) {
+                console.error('Error marking attendance:', error);
+                showNotification('Error al registrar asistencia: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Handle Group Attendance
+        async function handleGroupAttendance(e) {
+            e.preventDefault();
+            
+            if (!studentData) {
+                showNotification('No se encontró tu información de estudiante', 'error');
+                return;
+            }
+
+            const cycle = document.getElementById('group-cycle').value;
+            const course = document.getElementById('group-course').value;
+            const status = document.getElementById('group-status').value;
+
+            if (!cycle || !course) {
+                showNotification('Selecciona ciclo y curso', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceData = {
+                    studentId: studentData.id,
+                    studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
+                    course: course,
+                    cycle: cycle,
+                    status: status,
+                    teacherId: studentData.teacherId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    method: 'group',
+                    markedAt: new Date().toISOString()
+                };
+
+                await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
+                showNotification('Asistencia registrada exitosamente', 'success');
+                e.target.reset();
+            } catch (error) {
+                console.error('Error marking attendance:', error);
+                showNotification('Error al registrar asistencia: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Handle Logout
+        async function handleLogout() {
+            try {
+                showLoading(true);
+                stopQRScanner();
+                await auth.signOut();
+                currentUser = null;
+                studentData = null;
+                showEntryModal();
+                logoutModal.classList.remove('active');
+                showNotification('Sesión cerrada correctamente', 'success');
+            } catch (error) {
+                showNotification(error.message || 'Error al cerrar sesión', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Show Notification
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const title = document.getElementById('notification-title');
+            const messageEl = document.getElementById('notification-message');
+            const icon = notification.querySelector('i');
+
+            notification.className = 'notification ' + type;
+            title.textContent = type === 'success' ? 'Éxito' : type === 'error' ? 'Error' : 'Información';
+            messageEl.textContent = message;
+            icon.className = type === 'success' ? 'fas fa-check-circle' : 
+                           type === 'error' ? 'fas fa-exclamation-circle' : 
+                           'fas fa-info-circle';
+            notification.style.display = 'flex';
+
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+
+        // Show Loading
+        function showLoading(show) {
+            document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

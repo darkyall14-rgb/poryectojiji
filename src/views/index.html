@@ -1687,10 +1687,12 @@
                         const userRole = userData ? userData.role : 'teacher';
                         
                         if (userRole === 'student' || userRole === 'estudiante') {
-                            // Show student panel for students
-                            showStudentView();
+                            // Redirect students to their own HTML page
+                            window.location.href = 'student.html';
+                            return;
                         } else {
                             // Show teacher dashboard for teachers
+                            currentUser = user;
                             showApp();
                             loadUserData();
                             loadDashboardData();
@@ -1702,6 +1704,7 @@
                     } catch (error) {
                         console.error('Error checking user role:', error);
                         // Default to teacher view if error
+                        currentUser = user;
                         showApp();
                         loadUserData();
                         loadDashboardData();
@@ -1712,7 +1715,6 @@
                 } else {
                     // Clean up listeners when user logs out
                     cleanupListeners();
-                    hideStudentView();
                     showEntryModal();
                 }
             });
@@ -1742,76 +1744,6 @@
             hideStudentModal();
         }
 
-        // Show Student View
-        async function showStudentView() {
-            entryModal.classList.remove('active');
-            loginModal.classList.remove('active');
-            registerModal.classList.remove('active');
-            appContent.style.display = 'none';
-            
-            const studentPanel = document.getElementById('student-panel');
-            if (!studentPanel) return;
-            
-            studentPanel.style.display = 'block';
-            
-            // Find student data by user email or userId
-            try {
-                const studentsSnapshot = await database.ref('students').once('value');
-                const allStudents = studentsSnapshot.val() || {};
-                
-                // Find student by email or userId
-                let studentData = null;
-                let studentId = null;
-                
-                for (const [id, student] of Object.entries(allStudents)) {
-                    if (student.email === currentUser.email || student.userId === currentUser.uid) {
-                        studentData = student;
-                        studentId = id;
-                        break;
-                    }
-                }
-                
-                if (studentData && studentData.teacherId) {
-                    // Show student panel with their data
-                    await showStudentPanel(studentData.teacherId, studentId);
-                } else {
-                    // Student not found or not linked to a teacher
-                    const panelContent = document.getElementById('student-panel-content');
-                    if (panelContent) {
-                        panelContent.innerHTML = `
-                            <div style="text-align: center; padding: 40px;">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning); margin-bottom: 20px;"></i>
-                                <h3 style="margin-bottom: 10px;">Estudiante no encontrado</h3>
-                                <p style="color: var(--gray); margin-bottom: 20px;">
-                                    No se encontró información de estudiante asociada a tu cuenta.
-                                </p>
-                                <p style="color: var(--gray); font-size: 0.9rem;">
-                                    Por favor, contacta a tu docente para que te registre en el sistema.
-                                </p>
-                            </div>
-                        `;
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading student data:', error);
-                const panelContent = document.getElementById('student-panel-content');
-                if (panelContent) {
-                    panelContent.innerHTML = `
-                        <div style="text-align: center; padding: 40px;">
-                            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--error); margin-bottom: 20px;"></i>
-                            <h3 style="margin-bottom: 10px;">Error al cargar datos</h3>
-                            <p style="color: var(--gray);">Ocurrió un error al cargar tu información. Por favor, intenta nuevamente.</p>
-                        </div>
-                    `;
-                }
-            }
-        }
-
-        // Hide Student View
-        function hideStudentView() {
-            const studentPanel = document.getElementById('student-panel');
-            if (studentPanel) studentPanel.style.display = 'none';
-        }
 
         function showLogoutModal() {
             logoutModal.classList.add('active');
