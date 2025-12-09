@@ -2009,34 +2009,62 @@
         // Handle QR Scan
         async function handleQRScan(qrData) {
             try {
+                console.log('[DEBUG] QR code scanned, raw data:', qrData);
                 showLoading(true);
                 stopQRScanner();
 
-                let qrInfo;
+                let qrInfo = null;
+                
+                // Try to parse as JSON first
                 try {
                     qrInfo = JSON.parse(qrData);
+                    console.log('[DEBUG] Parsed QR as JSON:', qrInfo);
                 } catch (e) {
+                    console.log('[DEBUG] Not JSON, trying URL parsing...');
+                    
+                    // Try to parse as URL
                     if (qrData.includes('teacherId')) {
-                        const urlParams = new URLSearchParams(qrData.split('?')[1] || '');
-                        qrInfo = {
-                            type: 'student-panel',
-                            teacherId: urlParams.get('teacherId') || qrData,
-                            qrId: urlParams.get('qrId') || null
-                        };
+                        try {
+                            const url = new URL(qrData);
+                            qrInfo = {
+                                type: 'student-panel',
+                                teacherId: url.searchParams.get('teacherId'),
+                                qrId: url.searchParams.get('qrId')
+                            };
+                            console.log('[DEBUG] Parsed QR as URL:', qrInfo);
+                        } catch (urlError) {
+                            // Try as query string without full URL
+                            const params = new URLSearchParams(qrData.split('?')[1] || qrData);
+                            qrInfo = {
+                                type: 'student-panel',
+                                teacherId: params.get('teacherId'),
+                                qrId: params.get('qrId')
+                            };
+                            console.log('[DEBUG] Parsed QR as query string:', qrInfo);
+                        }
                     } else {
-                        showNotification('Código QR no reconocido', 'error');
+                        console.error('[ERROR] QR data not recognized:', qrData);
+                        showNotification('❌ Código QR no reconocido. Asegúrate de escanear un código válido.', 'error');
+                        showLoading(false);
                         return;
                     }
                 }
 
-                if (qrInfo.type === 'student-panel' && qrInfo.teacherId) {
-                    await markAttendanceFromQR(qrInfo.teacherId, qrInfo.qrId || null);
-                } else {
-                    showNotification('Código QR no válido', 'error');
+                // Validate QR info
+                if (!qrInfo || !qrInfo.teacherId) {
+                    console.error('[ERROR] Invalid QR info, no teacherId:', qrInfo);
+                    showNotification('❌ El código QR no contiene información de docente válida.', 'error');
+                    showLoading(false);
+                    return;
                 }
+
+                console.log('[DEBUG] QR info validated:', { teacherId: qrInfo.teacherId, qrId: qrInfo.qrId });
+                
+                // Mark attendance
+                await markAttendanceFromQR(qrInfo.teacherId, qrInfo.qrId || null);
             } catch (error) {
-                console.error('Error handling QR scan:', error);
-                showNotification('Error al procesar el código QR: ' + error.message, 'error');
+                console.error('[ERROR] Error handling QR scan:', error);
+                showNotification('❌ Error procesando código QR: ' + error.message, 'error');
             } finally {
                 showLoading(false);
             }
@@ -2044,59 +2072,63 @@
 
         // Mark Attendance from QR
         async function markAttendanceFromQR(teacherId, qrId = null) {
-            console.log('[DEBUG] markAttendanceFromQR called with:', { teacherId, qrId, studentData });
+            console.log('[DEBUG] markAttendanceFromQR called with:', { teacherId, qrId, hasStudentData: !!studentData });
             
-            if (!studentData) {
+            if (!studentData || !studentData.id) {
                 console.error('[ERROR] No student data found');
-                showNotification('No se encontró tu información de estudiante. Contacta a tu docente.', 'error');
+                showNotification('❌ No se encontró tu información de estudiante. Contacta a tu docente.', 'error');
                 return;
             }
 
             // Improved validation: if student has a teacherId, it must match the QR teacherId
-            // If student doesn't have a teacherId, allow the attendance from any teacher (for now)
             if (studentData.teacherId && studentData.teacherId !== teacherId) {
                 console.error('[ERROR] QR teacherId mismatch:', { 
                     studentTeacherId: studentData.teacherId, 
                     qrTeacherId: teacherId 
                 });
-                showNotification('Este código QR no corresponde a tu docente asignado', 'error');
+                showNotification('⚠️ Este código QR no corresponde a tu docente asignado.', 'warning');
+                showLoading(false);
                 return;
             }
 
-            console.log('[DEBUG] Student validation passed, proceeding with QR check');
+            console.log('[SUCCESS] Student validation passed');
 
             try {
                 const today = new Date().toISOString().split('T')[0];
+                console.log('[DEBUG] Recording attendance for date:', today);
                 
                 // Check if QR is valid (if qrId provided)
                 if (qrId) {
-                    console.log('[DEBUG] Validating QR code with ID:', qrId);
+                    console.log('[DEBUG] Validating QR code with ID:', qrId, 'from teacher:', teacherId);
                     const qrRef = database.ref('qr-codes/' + teacherId + '/' + qrId);
                     const qrSnapshot = await qrRef.once('value');
                     const qrData = qrSnapshot.val();
                     
-                    console.log('[DEBUG] QR data from database:', qrData);
+                    console.log('[DEBUG] QR data from database:', qrData ? 'Found' : 'NOT found');
                     
                     if (!qrData) {
-                        console.error('[ERROR] QR code not found in database');
-                        showNotification('Este código QR no existe o ha sido eliminado', 'error');
+                        console.error('[ERROR] QR code not found at path: qr-codes/' + teacherId + '/' + qrId);
+                        showNotification('❌ Este código QR no existe o ha sido eliminado.', 'error');
+                        showLoading(false);
                         return;
                     }
                     
-                    if (qrData) {
-                        // Check if QR is expired
-                        if (qrData.validUntil) {
-                            const validUntil = new Date(qrData.validUntil);
-                            if (new Date() > validUntil) {
-                                console.error('[ERROR] QR expired at:', qrData.validUntil);
-                                showNotification('Este código QR ha expirado', 'error');
-                                return;
-                            }
+                    // Check if QR is expired
+                    if (qrData.validUntil) {
+                        const validUntil = new Date(qrData.validUntil);
+                        const now = new Date();
+                        console.log('[DEBUG] QR expiration check:', { validUntil: validUntil.toISOString(), now: now.toISOString(), isExpired: now > validUntil });
+                        
+                        if (now > validUntil) {
+                            console.error('[ERROR] QR expired at:', qrData.validUntil);
+                            showNotification('⏰ Este código QR ha expirado.', 'warning');
+                            showLoading(false);
+                            return;
                         }
-                        console.log('[SUCCESS] QR validation passed');
                     }
+                    console.log('[SUCCESS] QR validation passed');
                 } else {
-                    console.log('[DEBUG] No QR ID provided, allowing attendance without QR validation');
+                    console.log('[DEBUG] No QR ID provided, allowing attendance from teacher');
                 }
                 
                 const attendanceData = {
@@ -2112,25 +2144,31 @@
                     markedAt: new Date().toISOString()
                 };
 
+                console.log('[DEBUG] Saving attendance record:', attendanceData);
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
+                console.log('[SUCCESS] Attendance record saved');
                 
                 // Update QR scan count if qrId provided
                 if (qrId) {
-                    database.ref('qr-codes/' + teacherId + '/' + qrId + '/scanCount').transaction((current) => {
-                        return (current || 0) + 1;
+                    console.log('[DEBUG] Incrementing scan count for QR:', qrId);
+                    await database.ref('qr-codes/' + teacherId + '/' + qrId + '/scanCount').transaction((current) => {
+                        const newCount = (current || 0) + 1;
+                        console.log('[DEBUG] Scan count updated:', newCount);
+                        return newCount;
                     });
                 }
                 
-                showNotification('Asistencia registrada exitosamente', 'success');
+                showNotification('✅ ¡Asistencia registrada exitosamente!', 'success');
+                console.log('[SUCCESS] Attendance marking complete');
                 
                 // Update dashboard
                 await loadStudentDashboard();
+                showLoading(false);
                 
-                // Update dashboard
-                loadStudentDashboard();
             } catch (error) {
-                console.error('Error marking attendance:', error);
-                showNotification('Error al registrar asistencia: ' + error.message, 'error');
+                console.error('[ERROR] Error marking attendance:', error);
+                showNotification('❌ Error al registrar asistencia: ' + error.message, 'error');
+                showLoading(false);
             }
         }
 

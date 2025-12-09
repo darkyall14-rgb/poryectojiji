@@ -3080,73 +3080,181 @@
                 return;
             }
 
-            // Get configuration
-            const qrDateTimeInput = document.getElementById('qr-datetime');
-            const qrTimeLimitInput = document.getElementById('qr-time-limit');
-            
-            let specificDateTime = null;
-            if (qrDateTimeInput && qrDateTimeInput.value) {
-                specificDateTime = new Date(qrDateTimeInput.value).toISOString();
-            }
-            
-            const timeLimitMinutes = qrTimeLimitInput && qrTimeLimitInput.value ? parseInt(qrTimeLimitInput.value) : null;
-            const validUntil = timeLimitMinutes ? new Date(Date.now() + timeLimitMinutes * 60000).toISOString() : null;
-
-            // Get teacher info
-            const teacherRef = database.ref('users/' + currentUser.uid);
-            const teacherSnapshot = await teacherRef.once('value');
-            const teacherData = teacherSnapshot.val() || {};
-
-            const qrId = database.ref('qr-codes').push().key;
-            const createdAt = specificDateTime || new Date().toISOString();
-
-            const qrUrl = window.location.origin + window.location.pathname.replace('index.html', 'student.html') + '?teacherId=' + currentUser.uid + (qrId ? '&qrId=' + qrId : '');
-            
-            const qrData = {
-                type: 'student-panel',
-                teacherId: currentUser.uid,
-                teacherName: currentUser.displayName || teacherData.name || 'Docente',
-                timestamp: createdAt,
-                qrId: qrId,
-                validUntil: validUntil,
-                timeLimitMinutes: timeLimitMinutes,
-                url: qrUrl,
-                scanCount: 0,
-                createdAt: createdAt
-            };
-
-            const qrText = JSON.stringify(qrData);
-            
-            // Save QR to history
-            try {
-                const qrDataToSave = {
-                    ...qrData,
-                    createdAt: firebase.database.ServerValue.TIMESTAMP
-                };
-                console.log('[DEBUG] Saving QR code to database:', {
-                    path: 'qr-codes/' + currentUser.uid + '/' + qrId,
-                    data: qrDataToSave
-                });
-                
-                await database.ref('qr-codes/' + currentUser.uid + '/' + qrId).set(qrDataToSave);
-                currentQRId = qrId;
-                
-                console.log('[SUCCESS] QR code saved successfully with ID:', qrId);
-            } catch (error) {
-                console.error('[ERROR] Error saving QR to history:', error);
-                showNotification('Error al guardar el código QR en el historial', 'error');
-            }
-            
             try {
                 showLoading(true);
                 
-                // Clear container and show loading
+                // Get configuration
+                const qrDateTimeInput = document.getElementById('qr-datetime');
+                const qrTimeLimitInput = document.getElementById('qr-time-limit');
+                
+                let specificDateTime = null;
+                if (qrDateTimeInput && qrDateTimeInput.value) {
+                    specificDateTime = new Date(qrDateTimeInput.value).toISOString();
+                }
+                
+                const timeLimitMinutes = qrTimeLimitInput && qrTimeLimitInput.value ? parseInt(qrTimeLimitInput.value) : null;
+                const validUntil = timeLimitMinutes ? new Date(Date.now() + timeLimitMinutes * 60000).toISOString() : null;
+
+                // Get teacher info
+                const teacherRef = database.ref('users/' + currentUser.uid);
+                const teacherSnapshot = await teacherRef.once('value');
+                const teacherData = teacherSnapshot.val() || {};
+
+                const qrId = database.ref('qr-codes').push().key;
+                const createdAt = specificDateTime || new Date().toISOString();
+
+                // Build URL for students to click or scan
+                const qrUrl = window.location.origin + window.location.pathname.replace('index.html', 'student.html') + '?teacherId=' + currentUser.uid + (qrId ? '&qrId=' + qrId : '');
+                
+                console.log('[DEBUG] QR URL to encode:', qrUrl);
+                
+                const qrData = {
+                    type: 'student-panel',
+                    teacherId: currentUser.uid,
+                    teacherName: currentUser.displayName || teacherData.name || 'Docente',
+                    timestamp: createdAt,
+                    qrId: qrId,
+                    validUntil: validUntil,
+                    timeLimitMinutes: timeLimitMinutes,
+                    url: qrUrl,
+                    scanCount: 0,
+                    createdAt: createdAt
+                };
+
+                const qrText = JSON.stringify(qrData);
+                console.log('[DEBUG] QR Data to be encoded:', qrData);
+                
+                // Save QR to database FIRST
+                try {
+                    const qrDataToSave = {
+                        ...qrData,
+                        createdAt: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    console.log('[DEBUG] Saving QR code to Firebase at path:', 'qr-codes/' + currentUser.uid + '/' + qrId);
+                    
+                    await database.ref('qr-codes/' + currentUser.uid + '/' + qrId).set(qrDataToSave);
+                    currentQRId = qrId;
+                    
+                    console.log('[SUCCESS] QR code saved to Firebase with ID:', qrId);
+                } catch (error) {
+                    console.error('[ERROR] Error saving QR to Firebase:', error);
+                    showNotification('Error al guardar el código QR', 'error');
+                    showLoading(false);
+                    return;
+                }
+                
+                // Now generate the visual QR code
                 qrContainer.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Generando QR...</div>';
 
-                // Use QR Server API (free, reliable, no API key needed)
-                // Alternative: api.qrserver.com
-                const qrSize = 200;
-                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(qrText)}`;
+                // Use QR Server API
+                const qrSize = 250;
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(qrText)}`;
+                
+                console.log('[DEBUG] Generated QR image URL:', qrImageUrl);
+                
+                // Create image element
+                const img = document.createElement('img');
+                img.style.width = qrSize + 'px';
+                img.style.height = qrSize + 'px';
+                img.style.borderRadius = '12px';
+                img.style.border = '3px solid var(--primary)';
+                img.style.cursor = 'pointer';
+                img.alt = 'Código QR de clase';
+                img.title = 'Haz clic para descargar';
+                
+                // Load image
+                img.onload = () => {
+                    console.log('[SUCCESS] QR image loaded');
+                    qrContainer.innerHTML = '';
+                    qrContainer.appendChild(img);
+                    
+                    // Add download button
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'btn btn-secondary';
+                    downloadBtn.style.marginTop = '10px';
+                    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Descargar QR';
+                    downloadBtn.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = qrImageUrl;
+                        a.download = `QR-Clase-${qrId}.png`;
+                        a.click();
+                    };
+                    qrContainer.parentElement.insertBefore(downloadBtn, qrContainer.nextSibling);
+                    
+                    // Show QR info
+                    const qrInfo = document.getElementById('qr-info');
+                    if (qrInfo) {
+                        qrInfo.style.display = 'block';
+                        const validUntilEl = document.getElementById('qr-valid-until');
+                        if (validUntilEl) {
+                            if (validUntil) {
+                                const validDate = new Date(validUntil);
+                                validUntilEl.textContent = validDate.toLocaleString('es-ES');
+                            } else {
+                                validUntilEl.textContent = 'Sin límite';
+                            }
+                        }
+                        const scanCountEl = document.getElementById('qr-scan-count');
+                        if (scanCountEl) scanCountEl.textContent = '0';
+                    }
+                    
+                    console.log('[SUCCESS] QR code generation complete');
+                    showNotification('✅ Código QR generado exitosamente', 'success');
+                    classQRCode = qrData;
+                    
+                    // Load QR history
+                    loadQRHistory();
+                    
+                    // Setup real-time scan count listener
+                    console.log('[DEBUG] Setting up real-time listener for QR:', qrId);
+                    setupQRScanListener(qrId);
+                    
+                    showLoading(false);
+                };
+                
+                img.onerror = () => {
+                    console.warn('[WARN] QR image failed to load from primary API, trying fallback');
+                    
+                    // Fallback to alternative API
+                    const fallbackUrl = `https://chart.googleapis.com/chart?chs=${qrSize}x${qrSize}&cht=qr&chl=${encodeURIComponent(qrText)}`;
+                    img.src = fallbackUrl;
+                    
+                    img.onerror = () => {
+                        console.error('[ERROR] Both QR APIs failed');
+                        // Last fallback - show text and manual option
+                        qrContainer.innerHTML = `
+                            <div style="text-align: center; padding: 20px; background: var(--warning-light); border-radius: 12px; border: 2px solid var(--warning);">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning); margin-bottom: 10px;"></i>
+                                <p style="color: var(--dark); margin-bottom: 10px; font-weight: 600;">No se pudo generar el QR visual</p>
+                                <p style="color: var(--gray); font-size: 0.9rem; margin-bottom: 15px;">Pero el código está listo. Los estudiantes pueden acceder directamente con el enlace:</p>
+                                <div style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; word-break: break-all; font-family: monospace; font-size: 0.8rem;">
+                                    ${qrUrl}
+                                </div>
+                                <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${qrUrl}'); showNotification('Enlace copiado', 'success');">
+                                    <i class="fas fa-copy"></i> Copiar Enlace
+                                </button>
+                            </div>
+                        `;
+                        showNotification('⚠️ QR visual no disponible, pero el código está activo', 'warning');
+                        showLoading(false);
+                    };
+                };
+                
+                img.src = qrImageUrl;
+                
+            } catch (err) {
+                console.error('[ERROR] Error in QR generation:', err);
+                showNotification('❌ Error al generar el código QR: ' + (err.message || 'Error desconocido'), 'error');
+                qrContainer.innerHTML = `
+                    <div style="text-align: center; padding: 20px; background: var(--gray-light); border-radius: 12px;">
+                        <i class="fas fa-times-circle" style="font-size: 2rem; color: var(--danger); margin-bottom: 10px;"></i>
+                        <p style="color: var(--gray);">Error al generar QR</p>
+                        <p style="color: var(--gray); font-size: 0.85rem;">Intenta nuevamente</p>
+                    </div>
+                `;
+                showLoading(false);
+            }
+        }
                 
                 // Create image element
                 const img = document.createElement('img');
