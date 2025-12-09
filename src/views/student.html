@@ -773,9 +773,23 @@
                 document.getElementById('login-form').style.display = 'none';
             });
 
+            // Prevent form clicks from propagating
+            loginForm.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }, true);
+            
+            const registerForm = document.getElementById('register-form');
+            registerForm.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }, true);
+
             // Login Form
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 const email = document.getElementById('login-email').value;
                 const password = document.getElementById('login-password').value;
 
@@ -812,19 +826,36 @@
 
             // Prevent event propagation from modal content to overlay
             const modalContent = entryModal.querySelector('.modal-content');
+            
+            // Stop all event propagation from modal content and all its children
             if (modalContent) {
-                modalContent.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent clicks inside modal from bubbling to overlay
+                // Use capture phase to stop events before they bubble to overlay
+                const stopPropagation = (e) => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                };
+                
+                ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend'].forEach(eventType => {
+                    modalContent.addEventListener(eventType, stopPropagation, true);
+                });
+                
+                // Also add to all form elements
+                const formElements = modalContent.querySelectorAll('input, button, select, textarea, form');
+                formElements.forEach(el => {
+                    ['click', 'mousedown', 'mouseup', 'focus', 'blur'].forEach(eventType => {
+                        el.addEventListener(eventType, stopPropagation, true);
+                    });
                 });
             }
-
+            
             // Close modal when clicking outside (only on the overlay, not on modal content)
             entryModal.addEventListener('click', (e) => {
-                // Only redirect if clicking directly on the overlay itself, not on any child elements
-                if (e.target === entryModal) {
+                // Only redirect if clicking directly on the overlay itself
+                // This should never trigger if stopPropagation is working correctly
+                if (e.target === entryModal && e.target !== modalContent && !modalContent.contains(e.target)) {
                     window.location.href = 'index.html';
                 }
-            });
+            }, false); // Use bubble phase, but stopPropagation should prevent it from reaching here
 
             // User Menu
             userMenu.addEventListener('click', () => {
@@ -1119,6 +1150,8 @@
         // Handle Register
         async function handleRegister(e) {
             e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             const name = document.getElementById('register-name').value.trim();
             const email = document.getElementById('register-email').value.trim();
             const password = document.getElementById('register-password').value;
