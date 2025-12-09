@@ -1671,7 +1671,13 @@
                     showApp();
                     loadUserData();
                     loadDashboardData();
+                    // Setup real-time listeners after user is authenticated
+                    cargarEstudiantes().then(() => {
+                        setupDashboardRealTime();
+                    });
                 } else {
+                    // Clean up listeners when user logs out
+                    cleanupListeners();
                     showEntryModal();
                 }
             });
@@ -1740,6 +1746,10 @@
         async function handleLogout() {
             try {
                 showLoading(true);
+                
+                // Clean up all real-time listeners
+                cleanupListeners();
+                
                 if (auth.currentUser) {
                     await auth.signOut();
                 }
@@ -2167,6 +2177,13 @@
             if (tab === 'students') {
                 setTimeout(() => {
                     renderListaEstudiantes();
+                }, 100);
+            }
+            
+            // If switching to dashboard, refresh data
+            if (tab === 'dashboard') {
+                setTimeout(() => {
+                    loadDashboardData();
                 }, 100);
             }
         }
@@ -2865,8 +2882,10 @@
             }
         }
 
-        // Real-time attendance listener
+        // Real-time listeners
         let attendanceListener = null;
+        let studentsListener = null;
+        let dashboardAttendanceListener = null;
         
         function setupAttendanceListener() {
             // Remove existing listener if any
@@ -2886,6 +2905,74 @@
             });
         }
 
+        function setupStudentsListener() {
+            // Remove existing listener if any
+            if (studentsListener) {
+                database.ref('students').off('value', studentsListener);
+            }
+            
+            // Setup real-time listener for students
+            studentsListener = database.ref('students').on('value', (snapshot) => {
+                const val = snapshot.val() || {};
+                estudiantes = Object.keys(val).map(k => ({ id: k, ...(val[k] || {}) }));
+                
+                // Always update dashboard when students change
+                loadDashboardData();
+                
+                // Update students list if it's active
+                const studentsSection = document.getElementById('students');
+                if (studentsSection && studentsSection.classList.contains('active')) {
+                    renderListaEstudiantes();
+                }
+            });
+        }
+
+        function setupDashboardRealTime() {
+            // Remove existing listener if any
+            if (dashboardAttendanceListener) {
+                const today = new Date().toISOString().split('T')[0];
+                database.ref('attendance/' + today).off('value', dashboardAttendanceListener);
+            }
+            
+            // Debounce function to avoid excessive updates
+            let dashboardUpdateTimeout = null;
+            
+            // Setup real-time listener for dashboard attendance updates
+            const today = new Date().toISOString().split('T')[0];
+            dashboardAttendanceListener = database.ref('attendance/' + today).on('value', (snapshot) => {
+                // Clear previous timeout
+                if (dashboardUpdateTimeout) {
+                    clearTimeout(dashboardUpdateTimeout);
+                }
+                
+                // Update dashboard with a small delay to batch updates
+                dashboardUpdateTimeout = setTimeout(() => {
+                    loadDashboardData();
+                    loadRecentActivity(); // Also update recent activity
+                }, 300); // 300ms debounce
+            });
+        }
+
+        function cleanupListeners() {
+            // Clean up all real-time listeners
+            if (attendanceListener) {
+                const today = new Date().toISOString().split('T')[0];
+                database.ref('attendance/' + today).off('value', attendanceListener);
+                attendanceListener = null;
+            }
+            
+            if (studentsListener) {
+                database.ref('students').off('value', studentsListener);
+                studentsListener = null;
+            }
+            
+            if (dashboardAttendanceListener) {
+                const today = new Date().toISOString().split('T')[0];
+                database.ref('attendance/' + today).off('value', dashboardAttendanceListener);
+                dashboardAttendanceListener = null;
+            }
+        }
+
         async function cargarEstudiantes() {
             try {
                 if (!backendOrigin) {
@@ -2900,8 +2987,10 @@
                 }
                 // Wait for render to complete (now async)
                 await renderListaEstudiantes();
-                // Setup real-time listener for attendance updates
+                // Setup real-time listeners
                 setupAttendanceListener();
+                setupStudentsListener();
+                setupDashboardRealTime();
                 // update dashboard count if present - filter by teacher
                 const totalEl = document.getElementById('total-students');
                 if (totalEl) {
