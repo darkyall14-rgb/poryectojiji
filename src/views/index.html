@@ -3088,13 +3088,15 @@
                         document.getElementById('qr-scan-count').textContent = '0';
                     }
                     
+                    console.log('[SUCCESS] QR code generated successfully:', qrId);
                     showNotification('Código QR generado exitosamente', 'success');
                     classQRCode = qrData;
                     
                     // Load QR history
                     loadQRHistory();
                     
-                    // Setup scan count listener
+                    // Setup real-time scan count listener
+                    console.log('[DEBUG] Setting up real-time listener for QR:', qrId);
                     setupQRScanListener(qrId);
                     
                     showLoading(false);
@@ -3138,7 +3140,12 @@
         // Load QR History
         async function loadQRHistory() {
             try {
-                if (!currentUser) return;
+                if (!currentUser) {
+                    console.warn('[WARN] loadQRHistory called but currentUser not set');
+                    return;
+                }
+                
+                console.log('[DEBUG] Loading QR history for user:', currentUser.uid);
                 
                 const qrHistoryRef = database.ref('qr-codes/' + currentUser.uid);
                 const snapshot = await qrHistoryRef.orderByChild('createdAt').limitToLast(10).once('value');
@@ -3151,6 +3158,8 @@
                     id,
                     ...qrHistoryData[id]
                 })).reverse(); // Most recent first
+                
+                console.log('[DEBUG] QR history loaded:', qrEntries.length, 'items');
                 
                 if (qrEntries.length === 0) {
                     historyList.innerHTML = `
@@ -3169,7 +3178,7 @@
                     const scanCount = qr.scanCount || 0;
                     
                     return `
-                        <div class="dashboard-card" style="margin-bottom: 15px; padding: 15px;">
+                        <div class="dashboard-card qr-history-item" data-qr-id="${qr.id}" style="margin-bottom: 15px; padding: 15px;">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -3182,7 +3191,7 @@
                                         </div>
                                     </div>
                                     <div style="font-size: 0.9rem; color: var(--gray); margin-top: 8px;">
-                                        <div><strong>Escaneos:</strong> ${scanCount}</div>
+                                        <div><strong>Escaneos:</strong> <span class="qr-scan-count-item" data-qr-id="${qr.id}">${scanCount}</span></div>
                                         ${validUntil ? `
                                             <div><strong>Válido hasta:</strong> 
                                                 <span style="color: ${isExpired ? 'var(--danger)' : 'var(--success)'};">
@@ -3202,38 +3211,60 @@
                     `;
                 }).join('');
                 
+                // Setup real-time listeners for each QR in history
+                qrEntries.forEach(qr => {
+                    setupQRScanCountListener(qr.id);
+                });
+                
             } catch (error) {
-                console.error('Error loading QR history:', error);
+                console.error('[ERROR] Error loading QR history:', error);
             }
         }
 
-        // Setup QR Scan Listener
-        function setupQRScanListener(qrId) {
+        // Setup Real-Time Listener for QR Scan Count
+        function setupQRScanCountListener(qrId) {
             if (!currentUser || !qrId) return;
             
-            // Listen for attendance records that reference this QR
-            const today = new Date().toISOString().split('T')[0];
-            const attendanceRef = database.ref('attendance/' + today);
+            console.log('[DEBUG] Setting up scan count listener for QR:', qrId);
             
-            attendanceRef.on('child_added', (snapshot) => {
-                const attendance = snapshot.val();
-                if (attendance && attendance.qrId === qrId) {
-                    // Update scan count
-                    database.ref('qr-codes/' + currentUser.uid + '/' + qrId + '/scanCount').transaction((current) => {
-                        return (current || 0) + 1;
-                    });
-                    
-                    // Update UI
+            // Listen to scanCount changes in real-time
+            const scanCountRef = database.ref('qr-codes/' + currentUser.uid + '/' + qrId + '/scanCount');
+            
+            scanCountRef.on('value', (snapshot) => {
+                const scanCount = snapshot.val() || 0;
+                
+                console.log('[DEBUG] Scan count updated for QR', qrId, ':', scanCount);
+                
+                // Update in history list
+                const historyItems = document.querySelectorAll('.qr-scan-count-item[data-qr-id="' + qrId + '"]');
+                historyItems.forEach(item => {
+                    item.textContent = scanCount;
+                });
+                
+                // Update current QR display if this is the currently displayed QR
+                if (currentQRId === qrId) {
                     const scanCountEl = document.getElementById('qr-scan-count');
-                    if (scanCountEl && currentQRId === qrId) {
-                        const currentCount = parseInt(scanCountEl.textContent) || 0;
-                        scanCountEl.textContent = currentCount + 1;
+                    if (scanCountEl) {
+                        scanCountEl.textContent = scanCount;
+                        console.log('[DEBUG] Updated current QR scan count display:', scanCount);
                     }
-                    
-                    // Reload history to update counts
-                    loadQRHistory();
                 }
+            }, (error) => {
+                console.error('[ERROR] Error listening to scan count:', error);
             });
+        }
+
+        // Setup QR Scan Listener (Legacy - for new QR generation)
+        function setupQRScanListener(qrId) {
+            if (!currentUser || !qrId) {
+                console.warn('[WARN] setupQRScanListener called with missing params');
+                return;
+            }
+            
+            console.log('[DEBUG] Setting up QR scan listener for:', qrId);
+            
+            // Use the improved scan count listener
+            setupQRScanCountListener(qrId);
         }
 
         // Show Notification

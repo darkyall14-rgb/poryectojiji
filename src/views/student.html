@@ -611,11 +611,11 @@
                     <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.95rem;">📚 Información Académica</h4>
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Ciclo Actual</label>
-                        <input type="text" id="profile-cycle" class="form-control" placeholder="Ciclo" readonly style="padding: 10px; font-size: 0.9rem;">
+                        <input type="text" id="profile-cycle" class="form-control" placeholder="Ciclo" style="padding: 10px; font-size: 0.9rem;">
                     </div>
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Curso Actual</label>
-                        <input type="text" id="profile-course" class="form-control" placeholder="Curso" readonly style="padding: 10px; font-size: 0.9rem;">
+                        <input type="text" id="profile-course" class="form-control" placeholder="Curso" style="padding: 10px; font-size: 0.9rem;">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Docente Asignado</label>
@@ -2579,48 +2579,97 @@
         }
 
         function populateProfileForm() {
-            if (!studentData) return;
+            if (!studentData) {
+                console.warn('[WARN] populateProfileForm called but studentData is empty');
+                return;
+            }
+            
+            console.log('[DEBUG] Populating profile form with studentData:', {
+                id: studentData.id,
+                names: studentData.names,
+                cycle: studentData.cycle,
+                course: studentData.course,
+                teacherId: studentData.teacherId
+            });
             
             // Load current data into form
             document.getElementById('profile-names').value = studentData.names || '';
             document.getElementById('profile-lastnames').value = studentData.lastnames || '';
             document.getElementById('profile-email').value = studentData.email || currentUser?.email || '';
-            document.getElementById('profile-cycle').value = studentData.cycle || '';
-            document.getElementById('profile-course').value = studentData.course || '';
+            document.getElementById('profile-cycle').value = studentData.cycle || studentData.ciclo || '';
+            document.getElementById('profile-course').value = studentData.course || studentData.curso || '';
+            
+            console.log('[DEBUG] Profile form populated - Cycle:', studentData.cycle || studentData.ciclo || 'N/A', 'Course:', studentData.course || studentData.curso || 'N/A');
             
             // Load teacher name
             if (studentData.teacherId) {
+                console.log('[DEBUG] Loading teacher data for teacherId:', studentData.teacherId);
                 database.ref('users/' + studentData.teacherId).once('value', (snapshot) => {
                     const teacherData = snapshot.val();
-                    document.getElementById('profile-teacher').value = teacherData?.name || 'Docente no encontrado';
+                    const fullTeacherName = (teacherData?.name || '') + (teacherData?.lastname ? ' ' + teacherData.lastname : '');
+                    const displayTeacherName = fullTeacherName.trim() || 'Docente no encontrado';
+                    document.getElementById('profile-teacher').value = displayTeacherName;
+                    console.log('[DEBUG] Teacher data loaded:', displayTeacherName);
                 });
             } else {
+                console.log('[DEBUG] No teacher assigned');
                 document.getElementById('profile-teacher').value = 'Sin docente asignado';
             }
         }
 
         async function saveStudentProfile() {
-            if (!studentData || !studentData.id) return;
+            if (!studentData || !studentData.id) {
+                console.error('[ERROR] No student data to save');
+                return;
+            }
             
             try {
                 showLoading(true);
                 
-                const updatedData = {
-                    names: document.getElementById('profile-names').value.trim(),
-                    lastnames: document.getElementById('profile-lastnames').value.trim()
-                };
+                const names = document.getElementById('profile-names').value.trim();
+                const lastnames = document.getElementById('profile-lastnames').value.trim();
+                const cycle = document.getElementById('profile-cycle').value.trim();
+                const course = document.getElementById('profile-course').value.trim();
                 
-                if (!updatedData.names || !updatedData.lastnames) {
+                console.log('[DEBUG] Saving student profile:', { 
+                    id: studentData.id,
+                    names, 
+                    lastnames, 
+                    cycle, 
+                    course 
+                });
+                
+                if (!names || !lastnames) {
                     showNotification('Nombres y apellidos son requeridos', 'error');
+                    showLoading(false);
                     return;
                 }
+                
+                const updatedData = {
+                    names: names,
+                    lastnames: lastnames
+                };
+                
+                // Add cycle and course if provided
+                if (cycle) {
+                    updatedData.cycle = cycle;
+                }
+                if (course) {
+                    updatedData.course = course;
+                }
+                
+                console.log('[DEBUG] Updating Firebase with:', updatedData);
                 
                 // Update in Firebase
                 await database.ref('students/' + studentData.id).update(updatedData);
                 
+                console.log('[SUCCESS] Student profile saved successfully');
+                
                 // Update local data
-                studentData.names = updatedData.names;
-                studentData.lastnames = updatedData.lastnames;
+                studentData.names = names;
+                studentData.lastnames = lastnames;
+                if (cycle) studentData.cycle = cycle;
+                if (course) studentData.course = course;
                 
                 // Update display name
                 document.getElementById('user-name').textContent = `${studentData.names} ${studentData.lastnames}`;
@@ -2629,8 +2678,8 @@
                 showNotification('Perfil actualizado exitosamente', 'success');
                 profileModal.classList.remove('active');
             } catch (error) {
-                console.error('Error saving profile:', error);
-                showNotification('Error al guardar el perfil', 'error');
+                console.error('[ERROR] Error saving profile:', error);
+                showNotification('Error al guardar el perfil: ' + error.message, 'error');
             } finally {
                 showLoading(false);
             }
