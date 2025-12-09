@@ -611,11 +611,15 @@
                     <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.95rem;">📚 Información Académica</h4>
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Ciclo Actual</label>
-                        <input type="text" id="profile-cycle" class="form-control" placeholder="Ciclo" style="padding: 10px; font-size: 0.9rem;">
+                        <select id="profile-cycle" class="form-control" style="padding: 10px; font-size: 0.9rem;">
+                            <option value="">Selecciona tu ciclo</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Curso Actual</label>
-                        <input type="text" id="profile-course" class="form-control" placeholder="Curso" style="padding: 10px; font-size: 0.9rem;">
+                        <select id="profile-course" class="form-control" style="padding: 10px; font-size: 0.9rem;">
+                            <option value="">Primero selecciona un ciclo</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Docente Asignado</label>
@@ -2610,7 +2614,7 @@
             }
         }
 
-        function populateProfileForm() {
+        async function populateProfileForm() {
             if (!studentData) {
                 console.warn('[WARN] populateProfileForm called but studentData is empty');
                 return;
@@ -2621,8 +2625,6 @@
                 names: studentData.names,
                 cycle: studentData.cycle,
                 course: studentData.course,
-                ciclo: studentData.ciclo,
-                curso: studentData.curso,
                 teacherId: studentData.teacherId
             });
             
@@ -2637,21 +2639,82 @@
             if (profileLastnamesEl) profileLastnamesEl.value = studentData.lastnames || '';
             if (profileEmailEl) profileEmailEl.value = studentData.email || currentUser?.email || '';
             
-            // For cycle: try cycle first, then ciclo, then empty
-            const cycleValue = studentData.cycle || studentData.ciclo || '';
-            if (profileCycleEl) {
-                profileCycleEl.value = cycleValue;
-                console.log('[DEBUG] Set cycle to:', cycleValue);
+            // Load cycles and courses from all students in the database
+            try {
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Collect all unique cycles and courses
+                const cyclesSet = new Set();
+                const coursesMap = new Map(); // Map of cycle -> Set of courses
+                
+                Object.values(allStudents).forEach(student => {
+                    const cycle = student.cycle || student.ciclo;
+                    const course = student.course || student.curso;
+                    
+                    if (cycle) {
+                        cyclesSet.add(cycle);
+                        if (!coursesMap.has(cycle)) {
+                            coursesMap.set(cycle, new Set());
+                        }
+                        if (course) {
+                            coursesMap.get(cycle).add(course);
+                        }
+                    }
+                });
+                
+                console.log('[DEBUG] Loaded cycles:', Array.from(cyclesSet), 'Courses map:', coursesMap);
+                
+                // Populate cycles select
+                if (profileCycleEl) {
+                    profileCycleEl.innerHTML = '<option value="">Selecciona tu ciclo</option>';
+                    Array.from(cyclesSet).sort().forEach(cycle => {
+                        const option = document.createElement('option');
+                        option.value = cycle;
+                        option.textContent = cycle;
+                        profileCycleEl.appendChild(option);
+                    });
+                    
+                    // Set current cycle
+                    const currentCycle = studentData.cycle || studentData.ciclo || '';
+                    if (currentCycle) {
+                        profileCycleEl.value = currentCycle;
+                        console.log('[DEBUG] Set cycle select to:', currentCycle);
+                    }
+                    
+                    // Listen for cycle changes to update courses
+                    profileCycleEl.addEventListener('change', () => {
+                        const selectedCycle = profileCycleEl.value;
+                        updateCoursesForCycle(selectedCycle, coursesMap);
+                    });
+                }
+                
+                // Populate courses for current cycle
+                const currentCycle = studentData.cycle || studentData.ciclo || '';
+                if (currentCycle) {
+                    updateCoursesForCycle(currentCycle, coursesMap);
+                    
+                    // Set current course
+                    if (profileCourseEl) {
+                        const currentCourse = studentData.course || studentData.curso || '';
+                        setTimeout(() => {
+                            if (currentCourse) {
+                                profileCourseEl.value = currentCourse;
+                                console.log('[DEBUG] Set course select to:', currentCourse);
+                            }
+                        }, 100);
+                    }
+                } else {
+                    // No cycle selected, show placeholder
+                    if (profileCourseEl) {
+                        profileCourseEl.innerHTML = '<option value="">Primero selecciona un ciclo</option>';
+                    }
+                }
+                
+                console.log('[DEBUG] Profile form populated with cycle and course selects');
+            } catch (error) {
+                console.error('[ERROR] Error populating cycles and courses:', error);
             }
-            
-            // For course: try course first, then curso, then empty
-            const courseValue = studentData.course || studentData.curso || '';
-            if (profileCourseEl) {
-                profileCourseEl.value = courseValue;
-                console.log('[DEBUG] Set course to:', courseValue);
-            }
-            
-            console.log('[DEBUG] Profile form populated - Cycle:', cycleValue || 'N/A', 'Course:', courseValue || 'N/A');
             
             // Load teacher name
             if (studentData.teacherId) {
@@ -2669,6 +2732,27 @@
             }
         }
 
+        // Helper function to update courses select based on selected cycle
+        function updateCoursesForCycle(cycle, coursesMap) {
+            const profileCourseEl = document.getElementById('profile-course');
+            if (!profileCourseEl) return;
+            
+            profileCourseEl.innerHTML = '<option value="">Selecciona tu curso</option>';
+            
+            if (cycle && coursesMap.has(cycle)) {
+                const courses = coursesMap.get(cycle);
+                Array.from(courses).sort().forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course;
+                    option.textContent = course;
+                    profileCourseEl.appendChild(option);
+                });
+                console.log('[DEBUG] Loaded', courses.size, 'courses for cycle:', cycle);
+            } else {
+                profileCourseEl.innerHTML = '<option value="">No hay cursos disponibles para este ciclo</option>';
+            }
+        }
+
         async function saveStudentProfile() {
             if (!studentData || !studentData.id) {
                 console.error('[ERROR] No student data to save');
@@ -2680,8 +2764,8 @@
                 
                 const names = document.getElementById('profile-names').value.trim();
                 const lastnames = document.getElementById('profile-lastnames').value.trim();
-                const cycle = document.getElementById('profile-cycle').value.trim();
-                const course = document.getElementById('profile-course').value.trim();
+                const cycle = document.getElementById('profile-cycle').value; // Don't trim selects
+                const course = document.getElementById('profile-course').value; // Don't trim selects
                 
                 console.log('[DEBUG] Saving student profile:', { 
                     id: studentData.id,
@@ -2697,17 +2781,22 @@
                     return;
                 }
                 
+                if (!cycle || !course) {
+                    showNotification('Debes seleccionar ciclo y curso', 'error');
+                    showLoading(false);
+                    return;
+                }
+                
                 const updatedData = {
                     names: names,
-                    lastnames: lastnames
+                    lastnames: lastnames,
+                    cycle: cycle,
+                    course: course
                 };
                 
-                // Add cycle and course if provided
-                if (cycle) {
-                    updatedData.cycle = cycle;
-                }
-                if (course) {
-                    updatedData.course = course;
+                // Add teacherId if student is linked
+                if (studentData.teacherId) {
+                    updatedData.teacherId = studentData.teacherId;
                 }
                 
                 console.log('[DEBUG] Updating Firebase with:', updatedData);
@@ -2720,15 +2809,16 @@
                 // Update local data
                 studentData.names = names;
                 studentData.lastnames = lastnames;
-                if (cycle) studentData.cycle = cycle;
-                if (course) studentData.course = course;
+                studentData.cycle = cycle;
+                studentData.course = course;
                 
                 // Update display name
                 document.getElementById('user-name').textContent = `${studentData.names} ${studentData.lastnames}`;
                 document.getElementById('user-avatar').textContent = studentData.names.charAt(0).toUpperCase();
                 
-                showNotification('Perfil actualizado exitosamente', 'success');
+                showNotification('Perfil actualizado exitosamente ✅', 'success');
                 profileModal.classList.remove('active');
+                showApp();
             } catch (error) {
                 console.error('[ERROR] Error saving profile:', error);
                 showNotification('Error al guardar el perfil: ' + error.message, 'error');
