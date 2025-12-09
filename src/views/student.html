@@ -528,6 +528,60 @@
 
         <main>
             <div class="container">
+                <!-- Student Dashboard -->
+                <div id="student-dashboard" class="dashboard-card" style="margin-bottom: 25px;">
+                    <h2 class="card-title">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Mi Dashboard
+                    </h2>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px;">
+                        <!-- Today's Status -->
+                        <div class="dashboard-card" style="padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">
+                                <i class="fas fa-calendar-day" style="color: var(--primary);"></i>
+                            </div>
+                            <h3 style="margin: 10px 0; font-size: 1.2rem;">Estado Hoy</h3>
+                            <div id="today-status" style="font-size: 1.5rem; font-weight: 600; color: var(--gray);">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Today's Attendance Summary -->
+                        <div class="dashboard-card" style="padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">
+                                <i class="fas fa-clipboard-check" style="color: var(--success);"></i>
+                            </div>
+                            <h3 style="margin: 10px 0; font-size: 1.2rem;">Asistencia Hoy</h3>
+                            <div id="today-attendance-summary" style="font-size: 0.9rem; color: var(--gray);">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Monthly Attendance -->
+                        <div class="dashboard-card" style="padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">
+                                <i class="fas fa-chart-line" style="color: var(--primary);"></i>
+                            </div>
+                            <h3 style="margin: 10px 0; font-size: 1.2rem;">Asistencia del Mes</h3>
+                            <div id="monthly-attendance" style="font-size: 1.5rem; font-weight: 600; color: var(--primary);">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Next Classes -->
+                        <div class="dashboard-card" style="padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">
+                                <i class="fas fa-clock" style="color: var(--warning);"></i>
+                            </div>
+                            <h3 style="margin: 10px 0; font-size: 1.2rem;">Próximas Clases</h3>
+                            <div id="next-classes" style="font-size: 0.9rem; color: var(--gray);">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="dashboard-card">
                     <h2 class="card-title">
                         <i class="fas fa-clipboard-check"></i>
@@ -724,6 +778,38 @@
             });
 
             setupEventListeners();
+            
+            // Check if student accessed via QR URL
+            checkQRURL();
+        }
+
+        // Check QR URL Parameters
+        async function checkQRURL() {
+            try {
+                // Check URL search params (from QR)
+                const urlParams = new URLSearchParams(window.location.search);
+                const teacherId = urlParams.get('teacherId');
+                const qrId = urlParams.get('qrId');
+                
+                if (teacherId && currentUser) {
+                    // Wait for student data to load
+                    if (!studentData) {
+                        await loadStudentData();
+                    }
+                    
+                    // Automatically mark attendance if student is linked to this teacher or not linked yet
+                    if (studentData && (!studentData.teacherId || studentData.teacherId === teacherId)) {
+                        await markAttendanceFromQR(teacherId, qrId);
+                        // Clear URL params after processing
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } else if (!studentData) {
+                        // If student not in database, show message
+                        showNotification('Primero debes estar registrado como estudiante', 'warning');
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking QR URL:', error);
+            }
         }
 
         // Load Student Data
@@ -749,8 +835,126 @@
 
                 // Load cycles and courses
                 await loadCycles();
+                
+                // Load student dashboard
+                await loadStudentDashboard();
             } catch (error) {
                 console.error('Error loading student data:', error);
+            }
+        }
+
+        // Load Student Dashboard
+        async function loadStudentDashboard() {
+            try {
+                const dashboard = document.getElementById('student-dashboard');
+                
+                if (!studentData || !studentData.id) {
+                    // Hide dashboard if no student data
+                    if (dashboard) dashboard.style.display = 'none';
+                    return;
+                }
+                
+                // Show dashboard
+                if (dashboard) dashboard.style.display = 'block';
+
+                const today = new Date().toISOString().split('T')[0];
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                
+                // Get today's attendance
+                const todayAttendanceRef = database.ref('attendance/' + today + '/' + studentData.id);
+                const todayAttendanceSnapshot = await todayAttendanceRef.once('value');
+                const todayAttendance = todayAttendanceSnapshot.val();
+                
+                // Update today's status
+                const todayStatusEl = document.getElementById('today-status');
+                if (todayStatusEl) {
+                    if (todayAttendance) {
+                        const status = todayAttendance.status || 'present';
+                        const statusText = {
+                            'present': 'Presente',
+                            'absent': 'Ausente',
+                            'late': 'Tardío',
+                            'excused': 'Justificado'
+                        }[status] || 'Presente';
+                        const statusColor = {
+                            'present': 'var(--success)',
+                            'absent': 'var(--danger)',
+                            'late': 'var(--warning)',
+                            'excused': 'var(--primary)'
+                        }[status] || 'var(--success)';
+                        
+                        todayStatusEl.innerHTML = `<span style="color: ${statusColor};">${statusText}</span>`;
+                    } else {
+                        todayStatusEl.innerHTML = '<span style="color: var(--gray);">Sin registro</span>';
+                    }
+                }
+                
+                // Update today's attendance summary
+                const todaySummaryEl = document.getElementById('today-attendance-summary');
+                if (todaySummaryEl) {
+                    if (todayAttendance) {
+                        const course = todayAttendance.course || 'N/A';
+                        const cycle = todayAttendance.cycle || 'N/A';
+                        todaySummaryEl.innerHTML = `
+                            <div style="font-weight: 600; color: var(--dark); margin-bottom: 5px;">${course}</div>
+                            <div style="font-size: 0.85rem;">${cycle}</div>
+                        `;
+                    } else {
+                        todaySummaryEl.innerHTML = '<span style="color: var(--gray);">No registrado hoy</span>';
+                    }
+                }
+                
+                // Calculate monthly attendance
+                const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+                const endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+                
+                // Get all attendance for current month
+                const attendanceRef = database.ref('attendance');
+                const attendanceSnapshot = await attendanceRef.once('value');
+                const allAttendance = attendanceSnapshot.val() || {};
+                
+                let presentDays = 0;
+                let totalDays = 0;
+                
+                // Count attendance for this month
+                Object.keys(allAttendance).forEach(date => {
+                    if (date >= startDate && date <= endDate) {
+                        const dayAttendance = allAttendance[date];
+                        if (dayAttendance && dayAttendance[studentData.id]) {
+                            totalDays++;
+                            const record = dayAttendance[studentData.id];
+                            if (record.status === 'present' || record.status === 'late' || record.status === 'excused') {
+                                presentDays++;
+                            }
+                        }
+                    }
+                });
+                
+                const monthlyPercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+                
+                // Update monthly attendance
+                const monthlyEl = document.getElementById('monthly-attendance');
+                if (monthlyEl) {
+                    monthlyEl.innerHTML = `${monthlyPercentage}%`;
+                }
+                
+                // Update next classes (simplified - could be enhanced with actual schedule)
+                const nextClassesEl = document.getElementById('next-classes');
+                if (nextClassesEl) {
+                    if (studentData.course && studentData.cycle) {
+                        nextClassesEl.innerHTML = `
+                            <div style="font-weight: 600; color: var(--dark); margin-bottom: 5px;">${studentData.course}</div>
+                            <div style="font-size: 0.85rem;">${studentData.cycle}</div>
+                        `;
+                    } else {
+                        nextClassesEl.innerHTML = '<span style="color: var(--gray);">Sin información</span>';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error loading student dashboard:', error);
             }
         }
 
@@ -1437,7 +1641,8 @@
                         const urlParams = new URLSearchParams(qrData.split('?')[1] || '');
                         qrInfo = {
                             type: 'student-panel',
-                            teacherId: urlParams.get('teacherId') || qrData
+                            teacherId: urlParams.get('teacherId') || qrData,
+                            qrId: urlParams.get('qrId') || null
                         };
                     } else {
                         showNotification('Código QR no reconocido', 'error');
@@ -1446,7 +1651,7 @@
                 }
 
                 if (qrInfo.type === 'student-panel' && qrInfo.teacherId) {
-                    await markAttendanceFromQR(qrInfo.teacherId);
+                    await markAttendanceFromQR(qrInfo.teacherId, qrInfo.qrId || null);
                 } else {
                     showNotification('Código QR no válido', 'error');
                 }
@@ -1459,19 +1664,38 @@
         }
 
         // Mark Attendance from QR
-        async function markAttendanceFromQR(teacherId) {
+        async function markAttendanceFromQR(teacherId, qrId = null) {
             if (!studentData) {
                 showNotification('No se encontró tu información de estudiante. Contacta a tu docente.', 'error');
                 return;
             }
 
-            if (studentData.teacherId !== teacherId) {
+            if (studentData.teacherId && studentData.teacherId !== teacherId) {
                 showNotification('Este código QR no corresponde a tu docente', 'error');
                 return;
             }
 
             try {
                 const today = new Date().toISOString().split('T')[0];
+                
+                // Check if QR is valid (if qrId provided)
+                if (qrId) {
+                    const qrRef = database.ref('qr-codes/' + teacherId + '/' + qrId);
+                    const qrSnapshot = await qrRef.once('value');
+                    const qrData = qrSnapshot.val();
+                    
+                    if (qrData) {
+                        // Check if QR is expired
+                        if (qrData.validUntil) {
+                            const validUntil = new Date(qrData.validUntil);
+                            if (new Date() > validUntil) {
+                                showNotification('Este código QR ha expirado', 'error');
+                                return;
+                            }
+                        }
+                    }
+                }
+                
                 const attendanceData = {
                     studentId: studentData.id,
                     studentName: `${studentData.names || ''} ${studentData.lastnames || ''}`.trim(),
@@ -1481,11 +1705,26 @@
                     teacherId: teacherId,
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
                     method: 'qr',
+                    qrId: qrId,
                     markedAt: new Date().toISOString()
                 };
 
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
+                
+                // Update QR scan count if qrId provided
+                if (qrId) {
+                    database.ref('qr-codes/' + teacherId + '/' + qrId + '/scanCount').transaction((current) => {
+                        return (current || 0) + 1;
+                    });
+                }
+                
                 showNotification('Asistencia registrada exitosamente', 'success');
+                
+                // Update dashboard
+                await loadStudentDashboard();
+                
+                // Update dashboard
+                loadStudentDashboard();
             } catch (error) {
                 console.error('Error marking attendance:', error);
                 showNotification('Error al registrar asistencia: ' + error.message, 'error');
@@ -1537,6 +1776,10 @@
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
                 showNotification('Asistencia registrada exitosamente', 'success');
                 e.target.reset();
+                
+                // Update dashboard
+                await loadStudentDashboard();
+                
                 // Reset teacher selection
                 selectedTeacher = null;
                 document.getElementById('manual-teacher-id').value = '';
@@ -1597,6 +1840,10 @@
                 await database.ref('attendance/' + today + '/' + studentData.id).set(attendanceData);
                 showNotification('Asistencia registrada exitosamente', 'success');
                 e.target.reset();
+                
+                // Update dashboard
+                await loadStudentDashboard();
+                
                 // Reset teacher selection
                 selectedTeacher = null;
                 document.getElementById('group-teacher-id').value = '';

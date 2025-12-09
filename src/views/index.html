@@ -1403,13 +1403,50 @@
                                 <div style="text-align: center; margin-top: 30px;">
                                     <h4>QR para Estudiantes</h4>
                                     <p style="color: var(--gray); font-size: 0.9rem; margin-bottom: 15px;">Los estudiantes escanearán este QR para marcar su asistencia</p>
+                                    
+                                    <!-- QR Configuration -->
+                                    <div style="background: var(--gray-light); padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: left;">
+                                        <div class="form-group">
+                                            <label class="form-label">Fecha y Hora Específica</label>
+                                            <input type="datetime-local" id="qr-datetime" class="form-control">
+                                            <small style="color: var(--gray);">Deja vacío para usar fecha/hora actual</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Límite de Tiempo (minutos)</label>
+                                            <input type="number" id="qr-time-limit" class="form-control" placeholder="Ej: 30" min="1">
+                                            <small style="color: var(--gray);">Tiempo en minutos que el QR será válido (opcional)</small>
+                                        </div>
+                                    </div>
+                                    
                                     <div id="class-qr-code" style="margin: 20px auto; width: 200px; height: 200px; background: #f5f5f5; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                                         <span>Generar código QR</span>
                                     </div>
+                                    
+                                    <div id="qr-info" style="margin: 15px 0; padding: 10px; background: var(--gray-light); border-radius: 8px; display: none;">
+                                        <div style="font-size: 0.85rem; color: var(--gray);">
+                                            <div><strong>Válido hasta:</strong> <span id="qr-valid-until"></span></div>
+                                            <div><strong>Escaneos:</strong> <span id="qr-scan-count">0</span></div>
+                                        </div>
+                                    </div>
+                                    
                                     <button class="btn btn-primary" id="generate-class-qr">
                                         <i class="fas fa-sync-alt"></i>
                                         Generar QR de Asistencia
                                     </button>
+                                </div>
+                                
+                                <!-- QR History -->
+                                <div style="margin-top: 40px; border-top: 2px solid var(--gray-light); padding-top: 30px;">
+                                    <h4 style="margin-bottom: 20px;">
+                                        <i class="fas fa-history"></i>
+                                        Historial de QR Generados
+                                    </h4>
+                                    <div id="qr-history-list" style="max-height: 400px; overflow-y: auto;">
+                                        <div class="empty-state">
+                                            <i class="fas fa-qrcode"></i>
+                                            <p>No hay QR generados aún</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1639,6 +1676,8 @@
         let classQRCode = null;
         let editingStudentId = null;
         let ciclosData = {};
+        let qrHistory = [];
+        let currentQRId = null;
 
         // DOM Elements
         const entryModal = document.getElementById('entry-modal');
@@ -2211,6 +2250,7 @@
             if (tab === 'attendance') {
                 setTimeout(() => {
                     initAttendanceTabs();
+                    loadQRHistory(); // Load QR history when switching to attendance tab
                 }, 100);
             }
             
@@ -2268,6 +2308,9 @@
                 firstTabContent.classList.add('active');
                 firstTabContent.style.display = 'block';
             }
+            
+            // Load QR history when attendance tab is initialized
+            loadQRHistory();
         }
 
         // Initialize QR Scanner using jsQR and native camera API
@@ -2502,20 +2545,53 @@
                 return;
             }
 
+            // Get configuration
+            const qrDateTimeInput = document.getElementById('qr-datetime');
+            const qrTimeLimitInput = document.getElementById('qr-time-limit');
+            
+            let specificDateTime = null;
+            if (qrDateTimeInput && qrDateTimeInput.value) {
+                specificDateTime = new Date(qrDateTimeInput.value).toISOString();
+            }
+            
+            const timeLimitMinutes = qrTimeLimitInput && qrTimeLimitInput.value ? parseInt(qrTimeLimitInput.value) : null;
+            const validUntil = timeLimitMinutes ? new Date(Date.now() + timeLimitMinutes * 60000).toISOString() : null;
+
             // Get teacher info
             const teacherRef = database.ref('users/' + currentUser.uid);
             const teacherSnapshot = await teacherRef.once('value');
             const teacherData = teacherSnapshot.val() || {};
 
+            const qrId = database.ref('qr-codes').push().key;
+            const createdAt = specificDateTime || new Date().toISOString();
+
+            const qrUrl = window.location.origin + window.location.pathname.replace('index.html', 'student.html') + '?teacherId=' + currentUser.uid + (qrId ? '&qrId=' + qrId : '');
+            
             const qrData = {
                 type: 'student-panel',
                 teacherId: currentUser.uid,
                 teacherName: currentUser.displayName || teacherData.name || 'Docente',
-                timestamp: new Date().toISOString(),
-                url: window.location.origin + window.location.pathname + '#student-panel?teacherId=' + currentUser.uid
+                timestamp: createdAt,
+                qrId: qrId,
+                validUntil: validUntil,
+                timeLimitMinutes: timeLimitMinutes,
+                url: qrUrl,
+                scanCount: 0,
+                createdAt: createdAt
             };
 
             const qrText = JSON.stringify(qrData);
+            
+            // Save QR to history
+            try {
+                await database.ref('qr-codes/' + currentUser.uid + '/' + qrId).set({
+                    ...qrData,
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                });
+                currentQRId = qrId;
+            } catch (error) {
+                console.error('Error saving QR to history:', error);
+            }
             
             try {
                 showLoading(true);
@@ -2540,8 +2616,32 @@
                 img.onload = () => {
                     qrContainer.innerHTML = '';
                     qrContainer.appendChild(img);
+                    
+                    // Show QR info
+                    const qrInfo = document.getElementById('qr-info');
+                    if (qrInfo) {
+                        qrInfo.style.display = 'block';
+                        const validUntilEl = document.getElementById('qr-valid-until');
+                        if (validUntilEl) {
+                            if (validUntil) {
+                                const validDate = new Date(validUntil);
+                                validUntilEl.textContent = validDate.toLocaleString('es-ES');
+                            } else {
+                                validUntilEl.textContent = 'Sin límite';
+                            }
+                        }
+                        document.getElementById('qr-scan-count').textContent = '0';
+                    }
+                    
                     showNotification('Código QR generado exitosamente', 'success');
                     classQRCode = qrData;
+                    
+                    // Load QR history
+                    loadQRHistory();
+                    
+                    // Setup scan count listener
+                    setupQRScanListener(qrId);
+                    
                     showLoading(false);
                 };
                 
@@ -2578,6 +2678,107 @@
                 `;
                 showLoading(false);
             }
+        }
+
+        // Load QR History
+        async function loadQRHistory() {
+            try {
+                if (!currentUser) return;
+                
+                const qrHistoryRef = database.ref('qr-codes/' + currentUser.uid);
+                const snapshot = await qrHistoryRef.orderByChild('createdAt').limitToLast(10).once('value');
+                const qrHistoryData = snapshot.val() || {};
+                
+                const historyList = document.getElementById('qr-history-list');
+                if (!historyList) return;
+                
+                const qrEntries = Object.keys(qrHistoryData).map(id => ({
+                    id,
+                    ...qrHistoryData[id]
+                })).reverse(); // Most recent first
+                
+                if (qrEntries.length === 0) {
+                    historyList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-qrcode"></i>
+                            <p>No hay QR generados aún</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                historyList.innerHTML = qrEntries.map(qr => {
+                    const createdDate = qr.createdAt ? new Date(qr.createdAt) : new Date(qr.timestamp);
+                    const validUntil = qr.validUntil ? new Date(qr.validUntil) : null;
+                    const isExpired = validUntil && new Date() > validUntil;
+                    const scanCount = qr.scanCount || 0;
+                    
+                    return `
+                        <div class="dashboard-card" style="margin-bottom: 15px; padding: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                        <i class="fas fa-qrcode" style="color: var(--primary);"></i>
+                                        <div>
+                                            <div style="font-weight: 600;">QR Generado</div>
+                                            <div style="font-size: 0.85rem; color: var(--gray);">
+                                                ${createdDate.toLocaleString('es-ES')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="font-size: 0.9rem; color: var(--gray); margin-top: 8px;">
+                                        <div><strong>Escaneos:</strong> ${scanCount}</div>
+                                        ${validUntil ? `
+                                            <div><strong>Válido hasta:</strong> 
+                                                <span style="color: ${isExpired ? 'var(--danger)' : 'var(--success)'};">
+                                                    ${validUntil.toLocaleString('es-ES')} ${isExpired ? '(Expirado)' : ''}
+                                                </span>
+                                            </div>
+                                        ` : '<div><strong>Sin límite de tiempo</strong></div>'}
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span class="status-badge ${isExpired ? 'status-absent' : 'status-present'}" style="margin-bottom: 8px; display: inline-block;">
+                                        ${isExpired ? 'Expirado' : 'Activo'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error loading QR history:', error);
+            }
+        }
+
+        // Setup QR Scan Listener
+        function setupQRScanListener(qrId) {
+            if (!currentUser || !qrId) return;
+            
+            // Listen for attendance records that reference this QR
+            const today = new Date().toISOString().split('T')[0];
+            const attendanceRef = database.ref('attendance/' + today);
+            
+            attendanceRef.on('child_added', (snapshot) => {
+                const attendance = snapshot.val();
+                if (attendance && attendance.qrId === qrId) {
+                    // Update scan count
+                    database.ref('qr-codes/' + currentUser.uid + '/' + qrId + '/scanCount').transaction((current) => {
+                        return (current || 0) + 1;
+                    });
+                    
+                    // Update UI
+                    const scanCountEl = document.getElementById('qr-scan-count');
+                    if (scanCountEl && currentQRId === qrId) {
+                        const currentCount = parseInt(scanCountEl.textContent) || 0;
+                        scanCountEl.textContent = currentCount + 1;
+                    }
+                    
+                    // Reload history to update counts
+                    loadQRHistory();
+                }
+            });
         }
 
         // Show Notification
