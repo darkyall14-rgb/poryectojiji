@@ -810,8 +810,17 @@
                 window.location.href = 'index.html';
             });
 
-            // Close modal when clicking outside
+            // Prevent event propagation from modal content to overlay
+            const modalContent = entryModal.querySelector('.modal-content');
+            if (modalContent) {
+                modalContent.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent clicks inside modal from bubbling to overlay
+                });
+            }
+
+            // Close modal when clicking outside (only on the overlay, not on modal content)
             entryModal.addEventListener('click', (e) => {
+                // Only redirect if clicking directly on the overlay itself, not on any child elements
                 if (e.target === entryModal) {
                     window.location.href = 'index.html';
                 }
