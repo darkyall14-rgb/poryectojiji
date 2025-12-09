@@ -397,7 +397,7 @@
         </div>
     </div>
 
-    <!-- Entry Modal (Login) -->
+    <!-- Entry Modal (Login/Register) -->
     <div id="entry-modal" class="modal-overlay active">
         <div class="modal-content">
             <button class="modal-close" id="entry-close">×</button>
@@ -406,10 +406,21 @@
                     <i class="fas fa-user-graduate"></i>
                 </div>
                 <h2 style="margin-bottom: 10px;">Panel de Estudiante</h2>
-                <p style="color: var(--gray);">Inicia sesión para registrar tu asistencia</p>
+                <p style="color: var(--gray);">Inicia sesión o regístrate para registrar tu asistencia</p>
             </div>
 
-            <form id="login-form">
+            <!-- Tabs for Login/Register -->
+            <div style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid var(--gray-light);">
+                <button class="tab-btn active" id="tab-login" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 3px solid var(--primary); cursor: pointer; font-weight: 500;">
+                    Iniciar Sesión
+                </button>
+                <button class="tab-btn" id="tab-register" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; font-weight: 500; color: var(--gray);">
+                    Registrarse
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" style="display: block;">
                 <div class="form-group">
                     <label class="form-label">Correo Electrónico</label>
                     <input type="email" id="login-email" class="form-control" placeholder="tu@email.com" required>
@@ -421,6 +432,30 @@
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
                     <i class="fas fa-sign-in-alt"></i>
                     Iniciar Sesión
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Nombre Completo</label>
+                    <input type="text" id="register-name" class="form-control" placeholder="Juan Pérez" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Correo Electrónico</label>
+                    <input type="email" id="register-email" class="form-control" placeholder="tu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contraseña</label>
+                    <input type="password" id="register-password" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirmar Contraseña</label>
+                    <input type="password" id="register-confirm" class="form-control" placeholder="Repite tu contraseña" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-user-plus"></i>
+                    Crear Cuenta de Estudiante
                 </button>
             </form>
         </div>
@@ -707,6 +742,29 @@
 
         // Setup Event Listeners
         function setupEventListeners() {
+            // Tab switching
+            document.getElementById('tab-login').addEventListener('click', () => {
+                document.getElementById('tab-login').classList.add('active');
+                document.getElementById('tab-login').style.borderBottomColor = 'var(--primary)';
+                document.getElementById('tab-login').style.color = 'var(--dark)';
+                document.getElementById('tab-register').classList.remove('active');
+                document.getElementById('tab-register').style.borderBottomColor = 'transparent';
+                document.getElementById('tab-register').style.color = 'var(--gray)';
+                document.getElementById('login-form').style.display = 'block';
+                document.getElementById('register-form').style.display = 'none';
+            });
+
+            document.getElementById('tab-register').addEventListener('click', () => {
+                document.getElementById('tab-register').classList.add('active');
+                document.getElementById('tab-register').style.borderBottomColor = 'var(--primary)';
+                document.getElementById('tab-register').style.color = 'var(--dark)';
+                document.getElementById('tab-login').classList.remove('active');
+                document.getElementById('tab-login').style.borderBottomColor = 'transparent';
+                document.getElementById('tab-login').style.color = 'var(--gray)';
+                document.getElementById('register-form').style.display = 'block';
+                document.getElementById('login-form').style.display = 'none';
+            });
+
             // Login Form
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -718,11 +776,18 @@
                     await auth.signInWithEmailAndPassword(email, password);
                     showNotification('¡Bienvenido!', 'success');
                 } catch (error) {
-                    showNotification(error.message, 'error');
+                    let errorMessage = error.message;
+                    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                        errorMessage = 'Credenciales inválidas. Verifica tu correo y contraseña.';
+                    }
+                    showNotification(errorMessage, 'error');
                 } finally {
                     showLoading(false);
                 }
             });
+
+            // Register Form
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
 
             // User Menu
             userMenu.addEventListener('click', () => {
@@ -1009,6 +1074,62 @@
             } catch (error) {
                 console.error('Error marking attendance:', error);
                 showNotification('Error al registrar asistencia: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Handle Register
+        async function handleRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value.trim();
+            const email = document.getElementById('register-email').value.trim();
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm').value;
+
+            if (password !== confirmPassword) {
+                showNotification('Las contraseñas no coinciden', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showNotification('La contraseña debe tener al menos 6 caracteres', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await userCredential.user.updateProfile({
+                    displayName: name
+                });
+                
+                // Save user data with student role
+                await database.ref('users/' + userCredential.user.uid).set({
+                    name: name,
+                    email: email,
+                    role: 'student',
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                });
+
+                showNotification('¡Cuenta creada exitosamente!', 'success');
+                
+                // Clear form
+                document.getElementById('register-form').reset();
+                
+                // Switch to login tab
+                document.getElementById('tab-login').click();
+                
+            } catch (error) {
+                let errorMessage = error.message;
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMessage = 'Este correo electrónico ya está registrado. Inicia sesión en su lugar.';
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = 'El correo electrónico no es válido.';
+                } else if (error.code === 'auth/weak-password') {
+                    errorMessage = 'La contraseña es muy débil. Usa al menos 6 caracteres.';
+                }
+                showNotification(errorMessage, 'error');
             } finally {
                 showLoading(false);
             }
