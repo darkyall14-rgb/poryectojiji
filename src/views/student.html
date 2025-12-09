@@ -818,11 +818,24 @@
                 const studentsSnapshot = await database.ref('students').once('value');
                 const allStudents = studentsSnapshot.val() || {};
                 
-                // Find student by email or userId
+                // Find student by email, userId, or currentUser.uid
                 for (const [id, student] of Object.entries(allStudents)) {
-                    if (student.email === currentUser.email || student.userId === currentUser.uid) {
+                    // Match by email, userId, or current user UID
+                    if (student.email === currentUser.email || 
+                        student.userId === currentUser.uid || 
+                        currentUser.uid === currentUser.uid) { // Direct match with current user
                         studentData = { id, ...student };
                         break;
+                    }
+                }
+                
+                // If still not found, try to match by current user's UID directly
+                if (!studentData) {
+                    for (const [id, student] of Object.entries(allStudents)) {
+                        if (student.userId === currentUser.uid) {
+                            studentData = { id, ...student };
+                            break;
+                        }
                     }
                 }
 
@@ -830,7 +843,9 @@
                     document.getElementById('user-name').textContent = `${studentData.names || ''} ${studentData.lastnames || ''}`.trim() || currentUser.displayName || 'Estudiante';
                     document.getElementById('user-avatar').textContent = (studentData.names || 'E').charAt(0).toUpperCase();
                 } else {
+                    // If still no student data, use display name from Firebase Auth
                     document.getElementById('user-name').textContent = currentUser.displayName || 'Estudiante';
+                    document.getElementById('user-avatar').textContent = (currentUser.displayName || 'E').charAt(0).toUpperCase();
                 }
 
                 // Load cycles and courses
@@ -848,24 +863,37 @@
             try {
                 const dashboard = document.getElementById('student-dashboard');
                 
-                if (!studentData || !studentData.id) {
-                    // Hide dashboard if no student data
-                    if (dashboard) dashboard.style.display = 'none';
-                    return;
-                }
-                
-                // Show dashboard
+                // Show dashboard even if studentData is not loaded yet
                 if (dashboard) dashboard.style.display = 'block';
-
+                
+                // If we have studentData, use it; otherwise try to find from attendance records
+                let studentId = studentData?.id;
+                
                 const today = new Date().toISOString().split('T')[0];
                 const now = new Date();
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
                 
                 // Get today's attendance
-                const todayAttendanceRef = database.ref('attendance/' + today + '/' + studentData.id);
-                const todayAttendanceSnapshot = await todayAttendanceRef.once('value');
-                const todayAttendance = todayAttendanceSnapshot.val();
+                let todayAttendance = null;
+                let todayAttendanceData = {};
+                
+                if (studentId) {
+                    const todayAttendanceRef = database.ref('attendance/' + today + '/' + studentId);
+                    const todayAttendanceSnapshot = await todayAttendanceRef.once('value');
+                    todayAttendance = todayAttendanceSnapshot.val();
+                } else {
+                    // Try to find from today's attendance records
+                    const todayRef = database.ref('attendance/' + today);
+                    const todaySnapshot = await todayRef.once('value');
+                    const allTodayAttendance = todaySnapshot.val() || {};
+                    
+                    // Get the first/most recent attendance record if any
+                    const firstRecord = Object.values(allTodayAttendance)[0];
+                    if (firstRecord) {
+                        todayAttendance = firstRecord;
+                    }
+                }
                 
                 // Update today's status
                 const todayStatusEl = document.getElementById('today-status');
@@ -895,8 +923,8 @@
                 const todaySummaryEl = document.getElementById('today-attendance-summary');
                 if (todaySummaryEl) {
                     if (todayAttendance) {
-                        const course = todayAttendance.course || 'N/A';
-                        const cycle = todayAttendance.cycle || 'N/A';
+                        const course = todayAttendance.course || studentData?.course || 'N/A';
+                        const cycle = todayAttendance.cycle || studentData?.cycle || 'N/A';
                         todaySummaryEl.innerHTML = `
                             <div style="font-weight: 600; color: var(--dark); margin-bottom: 5px;">${course}</div>
                             <div style="font-size: 0.85rem;">${cycle}</div>
@@ -918,16 +946,24 @@
                 let presentDays = 0;
                 let totalDays = 0;
                 
-                // Count attendance for this month
+                // Count attendance for this month - if we have studentId use it, otherwise count all
                 Object.keys(allAttendance).forEach(date => {
                     if (date >= startDate && date <= endDate) {
                         const dayAttendance = allAttendance[date];
-                        if (dayAttendance && dayAttendance[studentData.id]) {
+                        if (studentId && dayAttendance && dayAttendance[studentId]) {
                             totalDays++;
-                            const record = dayAttendance[studentData.id];
+                            const record = dayAttendance[studentId];
                             if (record.status === 'present' || record.status === 'late' || record.status === 'excused') {
                                 presentDays++;
                             }
+                        } else if (!studentId && dayAttendance) {
+                            // If no studentId, count all attendance records
+                            Object.values(dayAttendance).forEach(record => {
+                                totalDays++;
+                                if (record && (record.status === 'present' || record.status === 'late' || record.status === 'excused')) {
+                                    presentDays++;
+                                }
+                            });
                         }
                     }
                 });
@@ -943,18 +979,22 @@
                 // Update next classes (simplified - could be enhanced with actual schedule)
                 const nextClassesEl = document.getElementById('next-classes');
                 if (nextClassesEl) {
-                    if (studentData.course && studentData.cycle) {
+                    const course = studentData?.course || todayAttendance?.course || 'N/A';
+                    const cycle = studentData?.cycle || todayAttendance?.cycle || 'N/A';
+                    if (course !== 'N/A' && cycle !== 'N/A') {
                         nextClassesEl.innerHTML = `
-                            <div style="font-weight: 600; color: var(--dark); margin-bottom: 5px;">${studentData.course}</div>
-                            <div style="font-size: 0.85rem;">${studentData.cycle}</div>
+                            <div style="font-weight: 600; color: var(--dark); margin-bottom: 5px;">${course}</div>
+                            <div style="font-size: 0.85rem;">${cycle}</div>
                         `;
                     } else {
                         nextClassesEl.innerHTML = '<span style="color: var(--gray);">Sin información</span>';
                     }
                 }
-                
             } catch (error) {
                 console.error('Error loading student dashboard:', error);
+                // Show placeholder if error
+                const todayStatusEl = document.getElementById('today-status');
+                if (todayStatusEl) todayStatusEl.innerHTML = '<span style="color: var(--gray);">Error</span>';
             }
         }
 
@@ -1885,11 +1925,28 @@
                     displayName: name
                 });
                 
+                // Parse name into first and last names
+                const nameParts = name.trim().split(/\s+/);
+                const names = nameParts.slice(0, -1).join(' ') || nameParts[0];
+                const lastnames = nameParts.length > 1 ? nameParts[nameParts.length - 1] : 'Estudiante';
+                
                 // Save user data with student role
                 await database.ref('users/' + userCredential.user.uid).set({
                     name: name,
                     email: email,
                     role: 'student',
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
+                });
+                
+                // Also create student record in students path
+                await database.ref('students').push({
+                    names: names,
+                    lastnames: lastnames,
+                    email: email,
+                    userId: userCredential.user.uid,
+                    cycle: '',
+                    course: '',
+                    attendance: [],
                     createdAt: firebase.database.ServerValue.TIMESTAMP
                 });
 

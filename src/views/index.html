@@ -1940,6 +1940,66 @@
                 cargarCursosParaSelect(e.target.value, studentCourseSelect);
             });
 
+            // Add Course Button
+            const addCourseBtn = document.getElementById('add-course-btn');
+            if (addCourseBtn) {
+                addCourseBtn.addEventListener('click', () => {
+                    const nuevoNombre = prompt('Ingresa el nombre del nuevo curso:', '');
+                    if (!nuevoNombre) return;
+                    
+                    showLoading(true);
+                    const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
+                    
+                    // First load all ciclos to get the latest data
+                    database.ref(`/carreras/${carreraKey}/ciclos`).once('value', (snap) => {
+                        const ciclos = snap.val() || {};
+                        
+                        // Let user select which ciclo to add the course to
+                        const cicloKeys = Object.keys(ciclos);
+                        if (cicloKeys.length === 0) {
+                            showLoading(false);
+                            showNotification('No hay ciclos disponibles', 'error');
+                            return;
+                        }
+                        
+                        let cicloSeleccionado = cicloKeys[0];
+                        if (cicloKeys.length > 1) {
+                            const cicloNombres = cicloKeys.map(k => ciclos[k]?.nombre || k).join('\n');
+                            const prompt2 = prompt('¿A cuál ciclo agregar el curso?\n\n' + cicloNombres, cicloNombres.split('\n')[0]);
+                            if (!prompt2) {
+                                showLoading(false);
+                                return;
+                            }
+                            cicloSeleccionado = cicloKeys.find(k => (ciclos[k]?.nombre || k) === prompt2);
+                            if (!cicloSeleccionado) {
+                                showLoading(false);
+                                showNotification('Ciclo no encontrado', 'error');
+                                return;
+                            }
+                        }
+                        
+                        const cicloData = ciclos[cicloSeleccionado];
+                        const cursos = cicloData?.cursos ? (Array.isArray(cicloData.cursos) ? cicloData.cursos : Object.values(cicloData.cursos)) : [];
+                        cursos.push({ nombre: nuevoNombre });
+                        
+                        database.ref(`/carreras/${carreraKey}/ciclos/${cicloSeleccionado}/cursos`).set(cursos)
+                            .then(() => {
+                                showNotification('Curso agregado exitosamente', 'success');
+                                cargarYMostrarCursosDocente();
+                            })
+                            .catch(err => {
+                                console.error('Error agregando curso', err);
+                                showNotification('Error al agregar curso', 'error');
+                            })
+                            .finally(() => showLoading(false));
+                    }).catch(err => {
+                        showLoading(false);
+                        console.error('Error cargando ciclos', err);
+                        showNotification('Error al cargar ciclos', 'error');
+                    });
+                });
+            }
+
             // Filters
             if (searchStudentsInput) searchStudentsInput.addEventListener('input', renderListaEstudiantes);
             if (filterCourseSelect) filterCourseSelect.addEventListener('change', renderListaEstudiantes);
@@ -2265,6 +2325,13 @@
             if (tab === 'dashboard') {
                 setTimeout(() => {
                     loadDashboardData();
+                }, 100);
+            }
+
+            // If switching to courses, load and display courses
+            if (tab === 'courses') {
+                setTimeout(() => {
+                    cargarYMostrarCursosDocente();
                 }, 100);
             }
         }
@@ -2857,23 +2924,55 @@
                 };
                 
                 if (!editingStudentId) {
-                    if (backendOrigin) {
-                        const res = await fetch(`${backendOrigin}/api/students`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                nombres: names, 
-                                apellidos: lastnames, 
-                                ciclo, 
-                                curso,
-                                teacherId: teacherId
-                            })
+                    // Generate automatic email and password for the student
+                    const studentEmail = `${names.toLowerCase().replace(/\s+/g, '.')}${lastnames.toLowerCase().replace(/\s+/g, '.')}${Date.now()}@eduqr.local`;
+                    const studentPassword = Math.random().toString(36).slice(-12); // 12 char random password
+                    
+                    try {
+                        // Create Firebase Auth user
+                        const userCredential = await auth.createUserWithEmailAndPassword(studentEmail, studentPassword);
+                        const studentUserId = userCredential.user.uid;
+                        
+                        // Add userId to payload
+                        payload.userId = studentUserId;
+                        payload.email = studentEmail;
+                        
+                        // Save student in RTDB
+                        const studentRef = database.ref('students').push();
+                        await studentRef.set(payload);
+                        
+                        // Save credentials info in users path for reference
+                        await database.ref('users/' + studentUserId).set({
+                            name: `${names} ${lastnames}`,
+                            email: studentEmail,
+                            role: 'student',
+                            studentId: studentRef.key,
+                            teacherId: teacherId,
+                            createdAt: firebase.database.ServerValue.TIMESTAMP
                         });
-                        if (!res.ok) throw new Error('No se pudo crear el estudiante');
-                    } else {
-                        await database.ref('students').push(payload);
+                        
+                        showNotification(`Estudiante creado con email: ${studentEmail}`, 'success');
+                    } catch (authErr) {
+                        // If email already exists, just create in RTDB without Auth
+                        console.warn('Error creating auth user, creating in RTDB only:', authErr.message);
+                        if (backendOrigin) {
+                            const res = await fetch(`${backendOrigin}/api/students`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    nombres: names, 
+                                    apellidos: lastnames, 
+                                    ciclo, 
+                                    curso,
+                                    teacherId: teacherId
+                                })
+                            });
+                            if (!res.ok) throw new Error('No se pudo crear el estudiante');
+                        } else {
+                            await database.ref('students').push(payload);
+                        }
+                        showNotification('Estudiante creado (sin cuenta automática)', 'success');
                     }
-                    showNotification('Estudiante creado', 'success');
                 } else {
                     // Actualizar directamente en RTDB (no requiere backend token)
                     await database.ref('students/' + editingStudentId).update({
@@ -3248,16 +3347,11 @@
 
         async function cargarEstudiantes() {
             try {
-                if (!backendOrigin) {
-                    // Try reading from Firebase RTDB as fallback
-                    const snap = await database.ref('students').once('value');
-                    const val = snap.val() || {};
-                    estudiantes = Object.keys(val).map(k => ({ id: k, ...(val[k] || {}) }));
-                } else {
-                    const res = await fetch(`${backendOrigin}/api/students`);
-                    if (!res.ok) throw new Error('Error fetching students');
-                    estudiantes = await res.json();
-                }
+                // Always try Firebase first (most reliable)
+                const snap = await database.ref('students').once('value');
+                const val = snap.val() || {};
+                estudiantes = Object.keys(val).map(k => ({ id: k, ...(val[k] || {}) }));
+                
                 // Wait for render to complete (now async)
                 await renderListaEstudiantes();
                 // Setup real-time listeners
@@ -3278,6 +3372,70 @@
             } catch (err) {
                 console.error('cargarEstudiantes error', err);
             }
+        }
+
+        async function cargarYMostrarCursosDocente() {
+            // Load cycles first
+            await cargarCiclosDesdeDB();
+            
+            // Get the grid container
+            const gridContainer = document.querySelector('#courses .grid');
+            if (!gridContainer) return;
+            
+            if (!Object.keys(ciclosData).length) {
+                gridContainer.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--gray);">No hay ciclos disponibles</p>';
+                return;
+            }
+            
+            // Build cards for each cycle with its courses
+            let html = '';
+            Object.entries(ciclosData).forEach(([cicloKey, cicloData]) => {
+                const nombreCiclo = cicloData.nombre || cicloKey;
+                const cursos = cicloData.cursos || [];
+                
+                html += `
+                    <div class="dashboard-card" style="padding: 20px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                            <h4 style="color: var(--primary); margin: 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-book"></i>
+                                ${nombreCiclo}
+                            </h4>
+                            <span class="status-badge status-present" style="margin: 0;">${cursos.length} curso${cursos.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                `;
+                
+                if (cursos.length === 0) {
+                    html += `<p style="color: var(--gray); font-size: 0.9rem; margin: 10px 0;">Sin cursos registrados</p>`;
+                } else {
+                    cursos.forEach(curso => {
+                        const nombreCurso = curso.nombre || curso;
+                        html += `
+                            <div style="padding: 10px; background: var(--gray-light); border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-graduation-cap" style="color: var(--primary);"></i>
+                                    <span>${nombreCurso}</span>
+                                </div>
+                                <div style="display: flex; gap: 5px;">
+                                    <button class="btn" style="padding: 6px 12px; font-size: 0.85rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;" onclick="editarCurso('${cicloKey}', '${nombreCurso}')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn" style="padding: 6px 12px; font-size: 0.85rem; background: var(--danger); color: white; border: none; border-radius: 6px; cursor: pointer;" onclick="eliminarCurso('${cicloKey}', '${nombreCurso}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            gridContainer.innerHTML = html;
         }
 
         async function renderListaEstudiantes() {
@@ -3864,6 +4022,56 @@
             } finally {
                 showLoading(false);
             }
+        };
+
+        // Course management functions
+        window.editarCurso = (cicloKey, nombreCurso) => {
+            const nuevoNombre = prompt(`Editar nombre del curso:\n(Actual: ${nombreCurso})`, nombreCurso);
+            if (!nuevoNombre || nuevoNombre === nombreCurso) return;
+            
+            showLoading(true);
+            const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
+            const cicloData = ciclosData[cicloKey];
+            const cursos = cicloData?.cursos || [];
+            const index = cursos.findIndex(c => (c.nombre || c) === nombreCurso);
+            
+            if (index !== -1) {
+                cursos[index] = { nombre: nuevoNombre };
+                database.ref(`/carreras/${carreraKey}/ciclos/${cicloKey}/cursos/${index}`).set(cursos[index])
+                    .then(() => {
+                        showNotification('Curso actualizado', 'success');
+                        cargarYMostrarCursosDocente();
+                    })
+                    .catch(err => {
+                        console.error('Error editando curso', err);
+                        showNotification('Error al actualizar curso', 'error');
+                    })
+                    .finally(() => showLoading(false));
+            } else {
+                showLoading(false);
+                showNotification('Curso no encontrado', 'error');
+            }
+        };
+
+        window.eliminarCurso = (cicloKey, nombreCurso) => {
+            if (!confirm(`¿Eliminar el curso "${nombreCurso}"?`)) return;
+            
+            showLoading(true);
+            const carreraKey = 'Arquitectura_de_Plataformas_y_Servicios_de_TI';
+            const cicloData = ciclosData[cicloKey];
+            const cursos = cicloData?.cursos || [];
+            const nuevosCursos = cursos.filter(c => (c.nombre || c) !== nombreCurso);
+            
+            database.ref(`/carreras/${carreraKey}/ciclos/${cicloKey}/cursos`).set(nuevosCursos)
+                .then(() => {
+                    showNotification('Curso eliminado', 'success');
+                    cargarYMostrarCursosDocente();
+                })
+                .catch(err => {
+                    console.error('Error eliminando curso', err);
+                    showNotification('Error al eliminar curso', 'error');
+                })
+                .finally(() => showLoading(false));
         };
     </script>
 </body>
