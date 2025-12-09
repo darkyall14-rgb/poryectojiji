@@ -2597,9 +2597,10 @@
                 const attendanceSnapshot = await attendanceRef.once('value');
                 const allTodayAttendance = attendanceSnapshot.val() || {};
                 
-                // Filter attendance by teacherId and studentId
+                // Filter attendance by teacherId and count properly
                 let presentCount = 0;
-                let totalAttendance = 0;
+                let absentCount = 0;
+                const attendedStudents = new Set(); // Track which students have attendance records
                 
                 Object.entries(allTodayAttendance).forEach(([studentId, record]) => {
                     // Only count if student belongs to this teacher
@@ -2611,19 +2612,32 @@
                         return; // If not logged in, skip students with teacherId
                     }
                     
-                    totalAttendance++;
-                    if (record.status === 'present') {
+                    attendedStudents.add(studentId);
+                    if (record.status === 'present' || record.status === 'late' || record.status === 'excused') {
                         presentCount++;
+                    } else if (record.status === 'absent') {
+                        absentCount++;
                     }
                 });
+
+                // Calculate absent count: total students - those with attendance record
+                const actualAbsentCount = Math.max(0, studentCount - attendedStudents.size);
 
                 const attendancePercentage = studentCount > 0 
                     ? Math.round((presentCount / studentCount) * 100)
                     : 0;
 
+                console.log('[DEBUG] Dashboard stats:', {
+                    totalStudents: studentCount,
+                    presentCount: presentCount,
+                    absentCount: absentCount,
+                    attendedStudents: attendedStudents.size,
+                    actualAbsentCount: actualAbsentCount
+                });
+
                 document.getElementById('today-attendance').textContent = attendancePercentage + '%';
                 document.getElementById('present-count').textContent = presentCount;
-                document.getElementById('absent-count').textContent = studentCount - presentCount;
+                document.getElementById('absent-count').textContent = actualAbsentCount;
 
                 // Load courses count - count unique courses from teacher's students
                 const teacherCourses = new Set();
@@ -3346,13 +3360,36 @@
             
             console.log('[DEBUG] Setting up scan count listener for QR:', qrId);
             
+            let previousScanCount = 0;
+            
             // Listen to scanCount changes in real-time
-            const scanCountRef = database.ref('qr-codes/' + currentUser.uid + '/' + qrId + '/scanCount');
+            const scanCountRef = database.ref('qr-codes/' + currentUser.uid + '/' + qrId);
             
             scanCountRef.on('value', (snapshot) => {
-                const scanCount = snapshot.val() || 0;
+                const qrData = snapshot.val();
+                if (!qrData) return;
                 
-                console.log('[DEBUG] Scan count updated for QR', qrId, ':', scanCount);
+                const scanCount = qrData.scanCount || 0;
+                
+                console.log('[DEBUG] QR data updated for', qrId, '- Scan count:', scanCount, 'Previous:', previousScanCount);
+                
+                // Check if a new scan happened
+                if (scanCount > previousScanCount) {
+                    const newScans = scanCount - previousScanCount;
+                    console.log('[DEBUG] New scans detected:', newScans);
+                    
+                    // Show notification for new scans
+                    if (newScans === 1) {
+                        showNotification('✅ Un estudiante escaneó el QR', 'success');
+                    } else {
+                        showNotification(`✅ ${newScans} estudiantes escanearon el QR`, 'success');
+                    }
+                    
+                    // Also update dashboard stats
+                    loadDashboardData();
+                    
+                    previousScanCount = scanCount;
+                }
                 
                 // Update in history list
                 const historyItems = document.querySelectorAll('.qr-scan-count-item[data-qr-id="' + qrId + '"]');
@@ -4116,6 +4153,13 @@
                 const teacherId = currentUser ? currentUser.uid : (student?.teacherId || null);
                 const teacherName = currentUser ? (currentUser.displayName || 'Docente') : 'Docente';
                 
+                const statusText = {
+                    'present': 'Presente',
+                    'absent': 'Ausente',
+                    'late': 'Tardío',
+                    'excused': 'Justificado'
+                }[status] || status;
+                
                 const attendanceRef = database.ref('attendance/' + today + '/' + studentId);
                 await attendanceRef.set({ 
                     studentId, 
@@ -4128,7 +4172,11 @@
                     timestamp: firebase.database.ServerValue.TIMESTAMP, 
                     method: 'manual' 
                 });
-                showNotification('Asistencia registrada exitosamente', 'success');
+                
+                // Show detailed notification
+                const studentName = `${student?.names || ''} ${student?.lastnames || ''}`.trim();
+                showNotification(`✅ ${studentName} - ${statusText}`, 'success');
+                
                 document.getElementById('manual-attendance-form').reset();
                 document.getElementById('manual-cycle').value = '';
                 document.getElementById('manual-course').innerHTML = '<option value="">Primero selecciona un ciclo</option>';
@@ -4163,13 +4211,19 @@
                 const today = fecha || new Date().toISOString().split('T')[0];
                 let successCount = 0;
                 let errorCount = 0;
+                const statusCounts = {
+                    'present': 0,
+                    'absent': 0,
+                    'late': 0,
+                    'excused': 0
+                };
 
                 for (const select of statusSelects) {
                     const studentId = select.getAttribute('data-student-id');
                     const status = select.value;
                     if (!studentId || !status) continue;
 
-            try {
+                    try {
                         const student = estudiantes.find(s => s.id === studentId);
                         const teacherId = currentUser ? currentUser.uid : (student?.teacherId || null);
                         const teacherName = currentUser ? (currentUser.displayName || 'Docente') : 'Docente';
@@ -4187,6 +4241,7 @@
                             method: 'bulk'
                         });
                         successCount++;
+                        statusCounts[status]++;
                     } catch (err) {
                         console.error(`Error registrando asistencia para ${studentId}:`, err);
                         errorCount++;
@@ -4194,9 +4249,18 @@
                 }
 
                 if (successCount > 0) {
-                    showNotification(`Asistencia registrada para ${successCount} estudiante(s)`, 'success');
+                    // Show detailed notification
+                    const details = [];
+                    if (statusCounts['present'] > 0) details.push(`✓ ${statusCounts['present']} Presentes`);
+                    if (statusCounts['late'] > 0) details.push(`⏱ ${statusCounts['late']} Tardíos`);
+                    if (statusCounts['excused'] > 0) details.push(`◯ ${statusCounts['excused']} Justificados`);
+                    if (statusCounts['absent'] > 0) details.push(`✗ ${statusCounts['absent']} Ausentes`);
+                    
+                    const message = `✅ Registrados: ${successCount} | ${details.join(' | ')}`;
+                    showNotification(message, 'success');
+                    
                     if (errorCount > 0) {
-                        showNotification(`${errorCount} error(es) al registrar`, 'warning');
+                        showNotification(`⚠️ ${errorCount} error(es) al registrar`, 'warning');
                     }
                     document.getElementById('bulk-attendance-form').reset();
                     document.getElementById('bulk-date').value = new Date().toISOString().split('T')[0];
