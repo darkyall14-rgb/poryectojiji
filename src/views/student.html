@@ -105,6 +105,7 @@
             padding: 8px 15px;
             border-radius: 8px;
             transition: var(--transition);
+            position: relative;
         }
 
         .user-menu:hover {
@@ -121,6 +122,54 @@
             justify-content: center;
             color: white;
             font-weight: bold;
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-light);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .user-dropdown.active {
+            display: flex;
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text);
+            text-decoration: none;
+            transition: var(--transition);
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            width: 100%;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: var(--gray-light);
+        }
+
+        .dropdown-item.logout {
+            color: var(--danger);
+        }
+
+        .dropdown-item.logout:hover {
+            background: rgba(249, 65, 68, 0.1);
         }
 
         /* Cards */
@@ -330,10 +379,13 @@
         .modal-content {
             background: white;
             border-radius: var(--radius);
-            padding: 30px;
-            max-width: 400px;
+            padding: 25px;
+            max-width: 450px;
             width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
             position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
 
         .modal-close {
@@ -501,6 +553,72 @@
         </div>
     </div>
 
+    <!-- Student Profile Modal -->
+    <div id="student-profile-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="margin-bottom: 20px;">
+                <h3 style="margin: 0;"><i class="fas fa-user-circle"></i> Mi Perfil</h3>
+                <button class="modal-close" id="profile-close">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- Profile Avatar -->
+                <div style="text-align: center;">
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; margin: 0 auto 12px;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <input type="file" id="profile-photo-input" accept="image/*" style="display: none;">
+                    <button class="btn btn-secondary" style="font-size: 0.85rem; padding: 8px 16px;" onclick="document.getElementById('profile-photo-input').click();">
+                        <i class="fas fa-camera"></i> Cambiar Foto
+                    </button>
+                </div>
+
+                <!-- Personal Information -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.95rem;">📋 Información Personal</h4>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Nombres</label>
+                        <input type="text" id="profile-names" class="form-control" placeholder="Tus nombres" style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Apellidos</label>
+                        <input type="text" id="profile-lastnames" class="form-control" placeholder="Tus apellidos" style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Correo Electrónico</label>
+                        <input type="email" id="profile-email" class="form-control" placeholder="tu@email.com" readonly style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                </div>
+
+                <!-- Academic Information -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.95rem;">📚 Información Académica</h4>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Ciclo Actual</label>
+                        <input type="text" id="profile-cycle" class="form-control" placeholder="Ciclo" readonly style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Curso Actual</label>
+                        <input type="text" id="profile-course" class="form-control" placeholder="Curso" readonly style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="margin-bottom: 5px; font-size: 0.9rem;">Docente Asignado</label>
+                        <input type="text" id="profile-teacher" class="form-control" placeholder="Docente" readonly style="padding: 10px; font-size: 0.9rem;">
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" style="flex: 1; padding: 10px; font-size: 0.9rem; min-width: 100px;" id="save-profile-btn">
+                        <i class="fas fa-save"></i> Guardar
+                    </button>
+                    <button class="btn btn-secondary" style="flex: 1; padding: 10px; font-size: 0.9rem; min-width: 100px;" id="cancel-profile-btn">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Main App -->
     <div id="app-content" style="display: none;">
         <header>
@@ -522,12 +640,41 @@
                         <div style="font-size: 0.85rem; color: var(--gray);">Estudiante</div>
                     </div>
                     <i class="fas fa-chevron-down"></i>
+                    
+                    <!-- Dropdown Menu -->
+                    <div class="user-dropdown" id="user-dropdown">
+                        <a href="#" id="profile-menu-btn" class="dropdown-item">
+                            <i class="fas fa-user"></i> Ver Perfil
+                        </a>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--gray-light);">
+                        <a href="#" id="logout-menu-btn" class="dropdown-item logout">
+                            <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                        </a>
+                    </div>
                 </div>
             </div>
         </header>
 
         <main>
             <div class="container">
+                <!-- Notifications Section -->
+                <div id="notifications-section" style="display: none; margin-bottom: 25px;">
+                    <div class="dashboard-card">
+                        <div class="card-header" style="margin-bottom: 15px;">
+                            <h3 class="card-title">
+                                <i class="fas fa-bell"></i>
+                                Notificaciones y Recordatorios
+                            </h3>
+                            <button class="btn btn-icon" id="clear-notifications" style="padding: 6px 12px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div id="notifications-list" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Notifications will appear here -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Student Dashboard -->
                 <div id="student-dashboard" class="dashboard-card" style="margin-bottom: 25px;">
                     <h2 class="card-title">
@@ -736,6 +883,8 @@
         let ciclosData = {};
         let selectedTeacher = null; // { id, name, data }
         let teachersList = [];
+        let notifications = []; // Array para almacenar notificaciones
+        let qrListener = null; // Listener para QR en tiempo real
 
         // DOM Elements
         const entryModal = document.getElementById('entry-modal');
@@ -746,6 +895,10 @@
         const logoutConfirmBtn = document.getElementById('logout-confirm');
         const logoutCancelBtn = document.getElementById('logout-cancel');
         const logoutCloseBtn = document.getElementById('logout-close');
+        const profileModal = document.getElementById('student-profile-modal');
+        const profileCloseBtn = document.getElementById('profile-close');
+        const saveProfileBtn = document.getElementById('save-profile-btn');
+        const cancelProfileBtn = document.getElementById('cancel-profile-btn');
 
         // Initialize App
         function initApp() {
@@ -1211,12 +1364,67 @@
         function showApp() {
             entryModal.classList.remove('active');
             appContent.style.display = 'block';
+            
+            // Initialize notifications system
+            initNotifications();
         }
 
         // Setup Event Listeners
         function setupEventListeners() {
             // Get modal content first (needed for multiple functions)
             const modalContent = entryModal.querySelector('.modal-content');
+            
+            // User Menu Dropdown
+            const userMenu = document.getElementById('user-menu');
+            const userDropdown = document.getElementById('user-dropdown');
+            const profileMenuBtn = document.getElementById('profile-menu-btn');
+            const logoutMenuBtn = document.getElementById('logout-menu-btn');
+            
+            if (userMenu && userDropdown) {
+                // Toggle dropdown on click
+                userMenu.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.toggle('active');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!userMenu.contains(e.target) && !userDropdown.contains(e.target)) {
+                        userDropdown.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Profile menu button
+            if (profileMenuBtn) {
+                profileMenuBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.remove('active');
+                    showStudentProfile();
+                });
+            }
+            
+            // Logout menu button
+            if (logoutMenuBtn) {
+                logoutMenuBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.remove('active');
+                    document.getElementById('logout-modal').classList.add('active');
+                });
+            }
+            
+            // Clear notifications button
+            const clearNotificationsBtn = document.getElementById('clear-notifications');
+            if (clearNotificationsBtn) {
+                clearNotificationsBtn.addEventListener('click', () => {
+                    notifications = [];
+                    renderNotifications();
+                    showNotification('Notificaciones borradas', 'success');
+                });
+            }
             
             // Tab switching - Use capture phase to execute before stopPropagation
             document.getElementById('tab-login').addEventListener('click', (e) => {
@@ -1461,10 +1669,26 @@
                 }
             }, false);
 
-            // User Menu
-            userMenu.addEventListener('click', () => {
-                logoutModal.classList.add('active');
-            });
+            // Profile Modal
+            if (profileCloseBtn) profileCloseBtn.addEventListener('click', () => profileModal.classList.remove('active'));
+            if (cancelProfileBtn) cancelProfileBtn.addEventListener('click', () => profileModal.classList.remove('active'));
+            if (saveProfileBtn) saveProfileBtn.addEventListener('click', saveStudentProfile);
+            if (profileModal) {
+                profileModal.addEventListener('click', (e) => {
+                    if (e.target === profileModal) {
+                        profileModal.classList.remove('active');
+                    }
+                });
+            }
+
+            // Logout button in profile
+            const logoutBtnProfile = document.getElementById('logout-btn-profile');
+            if (logoutBtnProfile) {
+                logoutBtnProfile.addEventListener('click', () => {
+                    profileModal.classList.remove('active');
+                    logoutModal.classList.add('active');
+                });
+            }
 
             // Logout
             logoutConfirmBtn.addEventListener('click', handleLogout);
@@ -2014,6 +2238,295 @@
         // Show Loading
         function showLoading(show) {
             document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        // ========== NOTIFICATION SYSTEM ==========
+
+        // Add notification to the list
+        function addNotification(title, message, type = 'info', icon = 'fas fa-info-circle') {
+            const notificationId = Date.now();
+            const notification = {
+                id: notificationId,
+                title,
+                message,
+                type,
+                icon,
+                timestamp: new Date()
+            };
+            
+            notifications.unshift(notification);
+            
+            // Keep only last 10 notifications
+            if (notifications.length > 10) {
+                notifications.pop();
+            }
+            
+            renderNotifications();
+            showNotificationToast(title, message, type);
+        }
+
+        // Render notifications in the section
+        function renderNotifications() {
+            const notificationsList = document.getElementById('notifications-list');
+            const section = document.getElementById('notifications-section');
+            
+            if (!notificationsList) return;
+            
+            if (notifications.length === 0) {
+                section.style.display = 'none';
+                notificationsList.innerHTML = '';
+                return;
+            }
+            
+            section.style.display = 'block';
+            notificationsList.innerHTML = notifications.map(notif => {
+                const time = new Date(notif.timestamp);
+                const timeStr = time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                
+                const bgColor = {
+                    'qr': 'rgba(67, 97, 238, 0.1)',
+                    'reminder': 'rgba(248, 150, 30, 0.1)',
+                    'warning': 'rgba(249, 65, 68, 0.1)',
+                    'success': 'rgba(76, 201, 240, 0.1)'
+                }[notif.type] || 'rgba(108, 117, 125, 0.1)';
+
+                const borderColor = {
+                    'qr': 'var(--primary)',
+                    'reminder': 'var(--warning)',
+                    'warning': 'var(--danger)',
+                    'success': 'var(--success)'
+                }[notif.type] || 'var(--gray)';
+
+                return `
+                    <div style="padding: 15px; background: ${bgColor}; border-left: 4px solid ${borderColor}; border-radius: 8px; display: flex; gap: 12px; align-items: flex-start;">
+                        <i class="${notif.icon}" style="color: ${borderColor}; font-size: 1.2rem; flex-shrink: 0;"></i>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: var(--dark); margin-bottom: 4px;">${notif.title}</div>
+                            <div style="font-size: 0.9rem; color: var(--gray); margin-bottom: 5px;">${notif.message}</div>
+                            <div style="font-size: 0.8rem; color: var(--gray);">${timeStr}</div>
+                        </div>
+                        <button class="btn btn-icon" style="width: 28px; height: 28px; padding: 0;" onclick="removeNotification(${notif.id})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Remove notification
+        function removeNotification(id) {
+            notifications = notifications.filter(n => n.id !== id);
+            renderNotifications();
+        }
+
+        // Show notification as toast (temporary popup)
+        function showNotificationToast(title, message, type = 'info') {
+            showNotification(`${title}: ${message}`, type);
+        }
+
+        // Listen for QR codes generated by teachers
+        function setupQRNotificationListener() {
+            if (!currentUser || !studentData) return;
+            
+            // Get student's teacher and course info
+            const teacherId = studentData.teacherId;
+            const course = studentData.course;
+            
+            // Listen for recent QR codes
+            const qrRef = database.ref('qr-codes');
+            
+            if (qrListener) {
+                qrRef.off('child_added', qrListener);
+            }
+            
+            qrListener = qrRef.on('child_added', (snapshot) => {
+                const qr = snapshot.val();
+                
+                // Check if QR is for this student's teacher and course
+                if (qr && qr.teacherId === teacherId && 
+                    (!course || !qr.course || qr.course === course)) {
+                    
+                    // Check if QR was created recently (within last 2 minutes)
+                    const createdAt = new Date(qr.createdAt);
+                    const now = new Date();
+                    const diffMinutes = (now - createdAt) / (1000 * 60);
+                    
+                    if (diffMinutes < 2) {
+                        addNotification(
+                            '📱 QR Disponible',
+                            'Tu docente acaba de generar un código QR. ¡Escanéalo para registrar tu asistencia!',
+                            'qr',
+                            'fas fa-qrcode'
+                        );
+                    }
+                }
+            });
+        }
+
+        // Check for low attendance alerts
+        function checkAttendanceAlerts() {
+            if (!studentData) return;
+            
+            // Get monthly attendance percentage from dashboard
+            const monthlyEl = document.getElementById('monthly-attendance');
+            if (monthlyEl) {
+                const percentageText = monthlyEl.textContent;
+                const percentage = parseInt(percentageText);
+                
+                if (percentage > 0 && percentage < 75) {
+                    addNotification(
+                        '⚠️ Asistencia Baja',
+                        `Tu asistencia del mes es ${percentage}%. Intenta asistir a más clases.`,
+                        'warning',
+                        'fas fa-exclamation-triangle'
+                    );
+                }
+            }
+        }
+
+        // Set up class reminders
+        function setupClassReminders() {
+            if (!studentData) return;
+            
+            // Check every hour for class reminders
+            setInterval(() => {
+                const now = new Date();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                
+                // Set reminders for common class times (example: 8:00, 10:00, 14:00, 16:00)
+                const classHours = [8, 10, 14, 16];
+                
+                if (minutes === 0 && classHours.includes(hours)) {
+                    // Check if student has attendance today
+                    const todayAttendance = document.getElementById('today-status');
+                    if (todayAttendance && todayAttendance.textContent.includes('Sin registro')) {
+                        addNotification(
+                            '📚 Recordatorio de Clase',
+                            `Es hora de clase. ¿Has marcado tu asistencia en ${studentData.course || 'tu curso'}?`,
+                            'reminder',
+                            'fas fa-clock'
+                        );
+                    }
+                }
+            }, 60000); // Check every minute
+        }
+
+        // Check attendance thresholds and show alerts
+        function checkAttendanceThresholds() {
+            if (!studentData) return;
+            
+            // Check monthly percentage
+            const monthlyEl = document.getElementById('monthly-attendance');
+            if (monthlyEl) {
+                const percentage = parseInt(monthlyEl.textContent);
+                
+                if (percentage === 0) {
+                    addNotification(
+                        '🚨 Sin Asistencia',
+                        'No tienes registros de asistencia este mes. Por favor, asiste a clases.',
+                        'warning',
+                        'fas fa-exclamation-circle'
+                    );
+                } else if (percentage < 50) {
+                    addNotification(
+                        '⚠️ Asistencia Crítica',
+                        `Tu asistencia es de ${percentage}%. Necesitas mejorar urgentemente.`,
+                        'warning',
+                        'fas fa-exclamation-triangle'
+                    );
+                } else if (percentage < 75) {
+                    addNotification(
+                        '⚠️ Asistencia Baja',
+                        `Tu asistencia es de ${percentage}%. Intenta mejorar.`,
+                        'warning',
+                        'fas fa-info-circle'
+                    );
+                }
+            }
+        }
+
+        // ========== STUDENT PROFILE ==========
+
+        function showStudentProfile() {
+            profileModal.classList.add('active');
+            
+            // Ensure studentData is loaded before showing profile
+            if (!studentData || !studentData.names) {
+                loadStudentData().then(() => {
+                    populateProfileForm();
+                });
+            } else {
+                populateProfileForm();
+            }
+        }
+
+        function populateProfileForm() {
+            if (!studentData) return;
+            
+            // Load current data into form
+            document.getElementById('profile-names').value = studentData.names || '';
+            document.getElementById('profile-lastnames').value = studentData.lastnames || '';
+            document.getElementById('profile-email').value = studentData.email || currentUser?.email || '';
+            document.getElementById('profile-cycle').value = studentData.cycle || '';
+            document.getElementById('profile-course').value = studentData.course || '';
+            
+            // Load teacher name
+            if (studentData.teacherId) {
+                database.ref('users/' + studentData.teacherId).once('value', (snapshot) => {
+                    const teacherData = snapshot.val();
+                    document.getElementById('profile-teacher').value = teacherData?.name || 'Docente no encontrado';
+                });
+            } else {
+                document.getElementById('profile-teacher').value = 'Sin docente asignado';
+            }
+        }
+
+        async function saveStudentProfile() {
+            if (!studentData || !studentData.id) return;
+            
+            try {
+                showLoading(true);
+                
+                const updatedData = {
+                    names: document.getElementById('profile-names').value.trim(),
+                    lastnames: document.getElementById('profile-lastnames').value.trim()
+                };
+                
+                if (!updatedData.names || !updatedData.lastnames) {
+                    showNotification('Nombres y apellidos son requeridos', 'error');
+                    return;
+                }
+                
+                // Update in Firebase
+                await database.ref('students/' + studentData.id).update(updatedData);
+                
+                // Update local data
+                studentData.names = updatedData.names;
+                studentData.lastnames = updatedData.lastnames;
+                
+                // Update display name
+                document.getElementById('user-name').textContent = `${studentData.names} ${studentData.lastnames}`;
+                document.getElementById('user-avatar').textContent = studentData.names.charAt(0).toUpperCase();
+                
+                showNotification('Perfil actualizado exitosamente', 'success');
+                profileModal.classList.remove('active');
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                showNotification('Error al guardar el perfil', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Initialize notifications
+        function initNotifications() {
+            // Wait a moment for dashboard data to load
+            setTimeout(() => {
+                setupQRNotificationListener();
+                checkAttendanceThresholds();
+                setupClassReminders();
+            }, 2000);
         }
 
         // Initialize on load

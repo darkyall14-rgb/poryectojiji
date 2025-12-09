@@ -190,6 +190,7 @@
             border-radius: 50px;
             cursor: pointer;
             transition: var(--transition);
+            position: relative;
         }
 
         body.dark-mode .user-menu {
@@ -211,6 +212,54 @@
             justify-content: center;
             color: white;
             font-weight: 600;
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-light);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .user-dropdown.active {
+            display: flex;
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text);
+            text-decoration: none;
+            transition: var(--transition);
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            width: 100%;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: var(--gray-light);
+        }
+
+        .dropdown-item.logout {
+            color: var(--danger);
+        }
+
+        .dropdown-item.logout:hover {
+            background: rgba(249, 65, 68, 0.1);
         }
 
         .user-info {
@@ -723,6 +772,25 @@
             }
         }
 
+        /* Profile Tabs Styles */
+        .profile-tab-btn {
+            transition: var(--transition);
+        }
+
+        .profile-tab-btn:hover {
+            color: var(--primary) !important;
+            background: rgba(67, 97, 238, 0.05);
+        }
+
+        .profile-tab-btn.active {
+            color: var(--primary) !important;
+            border-bottom-color: var(--primary) !important;
+        }
+
+        .profile-tab-content {
+            animation: fadeIn 0.3s ease;
+        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -1130,11 +1198,249 @@
         </div>
     </div>
 
+    <!-- Student Profile Modal (Teacher View) -->
+    <div id="student-profile-view-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 520px; padding: 20px;">
+            <div class="modal-header" style="margin-bottom: 15px;">
+                <h3 class="modal-title" id="student-profile-name" style="font-size: 1.2rem;">Perfil del Estudiante</h3>
+                <button class="modal-close" id="student-profile-close">×</button>
+            </div>
+            
+            <div style="display: grid; gap: 15px; font-size: 0.95rem;">
+                <!-- Personal Info -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.9rem;"><i class="fas fa-user"></i> Información Personal</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="background: var(--gray-light); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: var(--gray);">Nombres</div>
+                            <div id="profile-view-names" style="font-weight: 600; font-size: 0.9rem;">-</div>
+                        </div>
+                        <div style="background: var(--gray-light); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: var(--gray);">Apellidos</div>
+                            <div id="profile-view-lastnames" style="font-weight: 600; font-size: 0.9rem;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Academic Info -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.9rem;"><i class="fas fa-book"></i> Información Académica</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="background: var(--gray-light); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: var(--gray);">Ciclo</div>
+                            <div id="profile-view-cycle" style="font-weight: 600; font-size: 0.9rem;">-</div>
+                        </div>
+                        <div style="background: var(--gray-light); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 0.8rem; color: var(--gray);">Curso</div>
+                            <div id="profile-view-course" style="font-weight: 600; font-size: 0.9rem;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attendance Stats -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.9rem;"><i class="fas fa-chart-bar"></i> Estadísticas</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                        <div style="background: rgba(76, 201, 240, 0.1); border-left: 3px solid var(--success); padding: 10px; border-radius: 6px;">
+                            <div style="font-size: 0.75rem; color: var(--gray);">Presente</div>
+                            <div id="profile-view-present" style="font-weight: 600; font-size: 1.2rem; color: var(--success);">0</div>
+                        </div>
+                        <div style="background: rgba(249, 65, 68, 0.1); border-left: 3px solid var(--danger); padding: 10px; border-radius: 6px;">
+                            <div style="font-size: 0.75rem; color: var(--gray);">Ausente</div>
+                            <div id="profile-view-absent" style="font-weight: 600; font-size: 1.2rem; color: var(--danger);">0</div>
+                        </div>
+                        <div style="background: rgba(248, 150, 30, 0.1); border-left: 3px solid var(--warning); padding: 10px; border-radius: 6px;">
+                            <div style="font-size: 0.75rem; color: var(--gray);">Porcentaje</div>
+                            <div id="profile-view-percentage" style="font-weight: 600; font-size: 1.2rem; color: var(--warning);">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attendance History -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.9rem;"><i class="fas fa-history"></i> Últimos Registros</h4>
+                    <div id="profile-view-history" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--gray-light); border-radius: 6px; background: var(--gray-light); font-size: 0.85rem;">
+                        <div style="padding: 15px; text-align: center; color: var(--gray);">
+                            <i class="fas fa-spinner fa-spin"></i> Cargando...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <h4 style="margin-bottom: 10px; color: var(--primary); font-size: 0.9rem;"><i class="fas fa-sticky-note"></i> Notas</h4>
+                    <textarea id="profile-view-notes" class="form-control" placeholder="Añadir notas..." style="min-height: 80px; resize: vertical; font-size: 0.9rem;"></textarea>
+                    <button class="btn btn-primary" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 0.9rem;" id="save-notes-btn">
+                        <i class="fas fa-save"></i> Guardar Notas
+                    </button>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" style="flex: 1; padding: 10px; font-size: 0.9rem; min-width: 100px;" id="close-profile-btn">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Profile Modal -->
+    <div id="teacher-profile-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px; padding: 0; overflow: hidden;">
+            <!-- Header con Avatar -->
+            <div style="background: var(--gradient); padding: 24px; color: white; position: relative;">
+                <button class="modal-close" id="teacher-profile-close" style="color: white; font-size: 1.8rem; z-index: 10;">×</button>
+                <div style="text-align: center;">
+                    <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.3); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 2rem;">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+                    <h2 id="teacher-profile-display-name" style="margin: 0 0 5px 0; font-size: 1.3rem;">Docente</h2>
+                    <p id="teacher-profile-display-email" style="margin: 0; font-size: 0.9rem; opacity: 0.9;">correo@ejemplo.com</p>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div style="display: flex; border-bottom: 2px solid var(--gray-light); background: white;">
+                <button class="profile-tab-btn active" data-tab="personal" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray); border-bottom: 3px solid transparent; transition: var(--transition);">
+                    <i class="fas fa-user"></i> Personal
+                </button>
+                <button class="profile-tab-btn" data-tab="professional" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray); border-bottom: 3px solid transparent; transition: var(--transition);">
+                    <i class="fas fa-briefcase"></i> Profesional
+                </button>
+                <button class="profile-tab-btn" data-tab="statistics" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray); border-bottom: 3px solid transparent; transition: var(--transition);">
+                    <i class="fas fa-chart-bar"></i> Estadísticas
+                </button>
+            </div>
+
+            <!-- Content Tabs -->
+            <div style="padding: 24px; max-height: 60vh; overflow-y: auto;">
+                
+                <!-- Tab: Personal -->
+                <div class="profile-tab-content" data-tab="personal" style="display: block;">
+                    <div style="display: grid; gap: 16px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-user-circle" style="color: var(--primary); margin-right: 6px;"></i>Nombre
+                            </label>
+                            <input type="text" id="teacher-profile-name" class="form-control" placeholder="Ej: Juan" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-address-card" style="color: var(--primary); margin-right: 6px;"></i>Apellido
+                            </label>
+                            <input type="text" id="teacher-profile-lastname" class="form-control" placeholder="Ej: Pérez" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-envelope" style="color: var(--primary); margin-right: 6px;"></i>Correo
+                            </label>
+                            <input type="email" id="teacher-profile-email" class="form-control" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px; background: var(--gray-light);" readonly>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-phone" style="color: var(--primary); margin-right: 6px;"></i>Teléfono
+                            </label>
+                            <input type="tel" id="teacher-profile-phone" class="form-control" placeholder="Ej: +34 600 123 456" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Professional -->
+                <div class="profile-tab-content" data-tab="professional" style="display: none;">
+                    <div style="display: grid; gap: 16px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-graduation-cap" style="color: var(--primary); margin-right: 6px;"></i>Especialidad
+                            </label>
+                            <input type="text" id="teacher-profile-specialization" class="form-control" placeholder="Ej: Programación Web" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-book" style="color: var(--primary); margin-right: 6px;"></i>Departamento
+                            </label>
+                            <input type="text" id="teacher-profile-department" class="form-control" placeholder="Ej: Tecnología" style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--dark); font-size: 0.9rem;">
+                                <i class="fas fa-file-alt" style="color: var(--primary); margin-right: 6px;"></i>Biografía
+                            </label>
+                            <textarea id="teacher-profile-bio" class="form-control" placeholder="Cuéntanos sobre ti..." style="padding: 10px 12px; font-size: 0.95rem; border: 1px solid var(--gray-light); border-radius: 8px; resize: vertical; min-height: 100px;"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Statistics -->
+                <div class="profile-tab-content" data-tab="statistics" style="display: none;">
+                    <div style="display: grid; gap: 16px;">
+                        <!-- Resumen General -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div style="background: linear-gradient(135deg, rgba(76, 201, 240, 0.2), rgba(76, 201, 240, 0.05)); border-left: 4px solid var(--success); padding: 16px; border-radius: 12px;">
+                                <div style="font-size: 0.8rem; color: var(--gray); margin-bottom: 8px; font-weight: 500;">
+                                    <i class="fas fa-users" style="margin-right: 6px;"></i>Estudiantes
+                                </div>
+                                <div id="teacher-students-count" style="font-weight: 700; font-size: 1.8rem; color: var(--success);">0</div>
+                                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 4px;">Estudiantes inscritos</div>
+                            </div>
+                            <div style="background: linear-gradient(135deg, rgba(248, 150, 30, 0.2), rgba(248, 150, 30, 0.05)); border-left: 4px solid var(--warning); padding: 16px; border-radius: 12px;">
+                                <div style="font-size: 0.8rem; color: var(--gray); margin-bottom: 8px; font-weight: 500;">
+                                    <i class="fas fa-calendar-check" style="margin-right: 6px;"></i>Registros
+                                </div>
+                                <div id="teacher-attendance-count" style="font-weight: 700; font-size: 1.8rem; color: var(--warning);">0</div>
+                                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 4px;">Registros de asistencia</div>
+                            </div>
+                        </div>
+
+                        <!-- Detalles por Curso -->
+                        <div>
+                            <h4 style="margin-bottom: 12px; color: var(--primary); font-weight: 600;">
+                                <i class="fas fa-book-open" style="margin-right: 6px;"></i>Cursos Activos
+                            </h4>
+                            <div id="teacher-courses-list" style="display: grid; gap: 8px;">
+                                <div style="text-align: center; padding: 20px; color: var(--gray);">
+                                    <i class="fas fa-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+                                    <p>No hay cursos registrados</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Miembro -->
+                        <div style="background: var(--gray-light); padding: 12px; border-radius: 8px; font-size: 0.85rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--gray);">Miembro desde:</span>
+                                <span id="teacher-member-since" style="font-weight: 600; color: var(--dark);">--</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--gray);">Última actualización:</span>
+                                <span id="teacher-last-update" style="font-weight: 600; color: var(--dark);">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--gray-light); background: white;">
+                <button class="btn btn-primary" style="flex: 1; padding: 10px; font-size: 0.9rem;" id="save-teacher-profile-btn">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+                <button class="btn btn-secondary" style="flex: 0 1 auto; padding: 10px 16px; font-size: 0.9rem;" id="close-teacher-profile-btn">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button class="btn btn-danger" style="flex: 0 1 auto; padding: 10px 16px; font-size: 0.9rem;" id="logout-btn-teacher-profile">
+                    <i class="fas fa-sign-out-alt"></i> Salir
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Student Panel (for QR scanning) -->
     <div id="student-panel" style="display: none;">
         <div class="container" style="max-width: 600px; margin: 50px auto; padding: 20px;">
             <div class="dashboard-card">
                 <div style="text-align: center; margin-bottom: 30px;">
+
                     <div class="logo-icon" style="margin: 0 auto 20px; width: 80px; height: 80px;">
                         <i class="fas fa-user-graduate" style="font-size: 2.5rem;"></i>
                     </div>
@@ -1208,6 +1514,17 @@
                                 <span class="user-role" id="user-role">Profesor</span>
                             </div>
                             <i class="fas fa-chevron-down"></i>
+                            
+                            <!-- Dropdown Menu -->
+                            <div class="user-dropdown" id="user-dropdown">
+                                <a href="#" id="profile-menu-btn" class="dropdown-item">
+                                    <i class="fas fa-user"></i> Ver Perfil
+                                </a>
+                                <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--gray-light);">
+                                <a href="#" id="logout-menu-btn" class="dropdown-item logout">
+                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -1917,8 +2234,47 @@
             document.getElementById('quick-generate-qr').addEventListener('click', generateClassQR);
             document.getElementById('generate-class-qr').addEventListener('click', generateClassQR);
 
-            // User Menu
-            userMenu.addEventListener('click', showLogoutModal);
+            // User Menu Dropdown
+            const userDropdown = document.getElementById('user-dropdown');
+            const profileMenuBtn = document.getElementById('profile-menu-btn');
+            const logoutMenuBtn = document.getElementById('logout-menu-btn');
+            
+            if (userMenu && userDropdown) {
+                // Toggle dropdown on click
+                userMenu.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.toggle('active');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!userMenu.contains(e.target) && !userDropdown.contains(e.target)) {
+                        userDropdown.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Profile menu button
+            if (profileMenuBtn) {
+                profileMenuBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.remove('active');
+                    showTeacherProfile();
+                });
+            }
+            
+            // Logout menu button
+            if (logoutMenuBtn) {
+                logoutMenuBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    userDropdown.classList.remove('active');
+                    showLogoutModal();
+                });
+            }
+            
             logoutConfirmBtn.addEventListener('click', handleLogout);
             logoutCancelBtn.addEventListener('click', hideLogoutModal);
             logoutCloseBtn.addEventListener('click', hideLogoutModal);
@@ -2092,17 +2448,40 @@
         // Load User Data
         function loadUserData() {
             if (currentUser) {
-                userName.textContent = currentUser.displayName || 'Docente';
-                userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0) : 'D';
+                console.log('[DEBUG] Loading user data for:', currentUser.uid);
                 
-                // Load additional user data from database
+                // Load user data from database (more complete)
                 database.ref('users/' + currentUser.uid).once('value')
                     .then((snapshot) => {
                         const userData = snapshot.val();
+                        console.log('[DEBUG] User data from database:', userData);
+                        
                         if (userData) {
+                            // Use name from database if available, otherwise use displayName
+                            const displayNameFromDB = userData.name 
+                                ? (userData.lastname ? userData.name + ' ' + userData.lastname : userData.name)
+                                : currentUser.displayName || 'Docente';
+                            
+                            userName.textContent = displayNameFromDB;
+                            userAvatar.textContent = displayNameFromDB.charAt(0).toUpperCase();
                             userRole.textContent = userData.role === 'teacher' ? 'Profesor' : 'Estudiante';
+                            
+                            console.log('[SUCCESS] User header updated with name:', displayNameFromDB);
+                        } else {
+                            // Fallback to Auth displayName
+                            userName.textContent = currentUser.displayName || 'Docente';
+                            userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0) : 'D';
+                            userRole.textContent = 'Profesor';
                         }
+                    })
+                    .catch(err => {
+                        console.error('[ERROR] Error loading user data:', err);
+                        // Fallback display
+                        userName.textContent = currentUser.displayName || 'Docente';
+                        userAvatar.textContent = currentUser.displayName ? currentUser.displayName.charAt(0) : 'D';
                     });
+            } else {
+                console.warn('[WARN] loadUserData called but currentUser is not set');
             }
         }
 
@@ -2899,6 +3278,10 @@
             const lastnames = document.getElementById('student-lastnames').value.trim();
             const ciclo = (studentCycleSelect?.value || '').trim();
             const curso = (studentCourseSelect?.value || '').trim();
+            
+            console.log('[DEBUG] handleStudentSubmit - currentUser:', currentUser ? { uid: currentUser.uid, email: currentUser.email } : null);
+            console.log('[DEBUG] Form values - names:', names, 'lastnames:', lastnames, 'ciclo:', ciclo, 'curso:', curso);
+            
             if (!names || !lastnames || !ciclo || !curso) {
                 showNotification('Completa todos los campos', 'error');
                 return;
@@ -2906,12 +3289,15 @@
             try {
                 showLoading(true);
                 
-                // Get current teacher ID
-                const teacherId = currentUser ? currentUser.uid : null;
-                if (!teacherId) {
-                    showNotification('Debes iniciar sesión como docente para crear estudiantes', 'error');
+                // Validate currentUser is properly set
+                if (!currentUser || !currentUser.uid) {
+                    console.error('[ERROR] currentUser not properly initialized:', currentUser);
+                    showNotification('Error: Sesión de usuario no válida. Por favor, recarga la página.', 'error');
                     return;
                 }
+                
+                const teacherId = currentUser.uid;
+                console.log('[DEBUG] Using teacherId:', teacherId);
 
                 const payload = { 
                     names, 
@@ -3521,6 +3907,7 @@
                     <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                     <td>
                         <div class="student-actions">
+                            <button class="btn btn-secondary" onclick="viewStudentProfile('${s.id || ''}')">Perfil</button>
                             <button class="btn btn-secondary" onclick="editStudent('${s.id || ''}')">Editar</button>
                             <button class="btn btn-secondary" onclick="deleteStudent('${s.id || ''}')">Eliminar</button>
                         </div>
@@ -3846,6 +4233,205 @@
 
         // Additional listeners wired separately to avoid redefining setupEventListeners
         function setupAdditionalEventListeners() {
+            // Student Profile Modal Listeners
+            const profileCloseBtn = document.getElementById('student-profile-close');
+            if (profileCloseBtn) {
+                profileCloseBtn.addEventListener('click', () => {
+                    document.getElementById('student-profile-view-modal').classList.remove('active');
+                });
+            }
+            
+            const closeProfileBtn = document.getElementById('close-profile-btn');
+            if (closeProfileBtn) {
+                closeProfileBtn.addEventListener('click', () => {
+                    document.getElementById('student-profile-view-modal').classList.remove('active');
+                });
+            }
+            
+            const logoutBtnTeacher = document.getElementById('logout-btn-teacher');
+            if (logoutBtnTeacher) {
+                logoutBtnTeacher.addEventListener('click', () => {
+                    document.getElementById('student-profile-view-modal').classList.remove('active');
+                    handleLogout();
+                });
+            }
+            
+            const saveNotesBtn = document.getElementById('save-notes-btn');
+            if (saveNotesBtn) {
+                saveNotesBtn.addEventListener('click', async () => {
+                    const studentId = window.currentStudentProfileId;
+                    const notes = document.getElementById('profile-view-notes').value;
+                    
+                    console.log('[DEBUG] Save notes button clicked');
+                    console.log('[DEBUG] studentId:', studentId);
+                    console.log('[DEBUG] currentUser:', currentUser ? { uid: currentUser.uid, email: currentUser.email } : null);
+                    console.log('[DEBUG] notes length:', notes ? notes.length : 0);
+                    
+                    if (!studentId) {
+                        console.error('[ERROR] No student ID available for saving notes');
+                        showNotification('Error: No se encontró el ID del estudiante', 'error');
+                        return;
+                    }
+                    
+                    if (!currentUser || !currentUser.uid) {
+                        console.error('[ERROR] currentUser not properly initialized:', currentUser);
+                        showNotification('Error: Sesión no válida. Por favor, recarga la página.', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        showLoading(true);
+                        const timestamp = new Date().toISOString();
+                        
+                        // Save notes with metadata
+                        await database.ref(`students/${studentId}/notes`).set({
+                            content: notes,
+                            savedBy: currentUser.uid,
+                            savedAt: timestamp,
+                            teacherName: currentUser.displayName || 'Docente'
+                        });
+                        
+                        console.log('[SUCCESS] Notes saved for student:', studentId);
+                        showNotification('Notas guardadas exitosamente', 'success');
+                    } catch (error) {
+                        console.error('[ERROR] Error saving notes:', error);
+                        showNotification('Error al guardar las notas: ' + error.message, 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                });
+            }
+            
+            const profileModal = document.getElementById('student-profile-view-modal');
+            if (profileModal) {
+                profileModal.addEventListener('click', (e) => {
+                    if (e.target === profileModal) {
+                        profileModal.classList.remove('active');
+                    }
+                });
+            }
+
+            // Teacher Profile Modal Listeners
+            const teacherProfileCloseBtn = document.getElementById('teacher-profile-close');
+            if (teacherProfileCloseBtn) {
+                teacherProfileCloseBtn.addEventListener('click', () => {
+                    document.getElementById('teacher-profile-modal').classList.remove('active');
+                });
+            }
+
+            const closeTeacherProfileBtn = document.getElementById('close-teacher-profile-btn');
+            if (closeTeacherProfileBtn) {
+                closeTeacherProfileBtn.addEventListener('click', () => {
+                    document.getElementById('teacher-profile-modal').classList.remove('active');
+                });
+            }
+
+            const saveTeacherProfileBtn = document.getElementById('save-teacher-profile-btn');
+            if (saveTeacherProfileBtn) {
+                saveTeacherProfileBtn.addEventListener('click', async () => {
+                    try {
+                        showLoading(true);
+                        
+                        // Get all form values
+                        const name = document.getElementById('teacher-profile-name').value.trim();
+                        const lastname = document.getElementById('teacher-profile-lastname').value.trim();
+                        const phone = document.getElementById('teacher-profile-phone').value.trim();
+                        const specialization = document.getElementById('teacher-profile-specialization').value.trim();
+                        const department = document.getElementById('teacher-profile-department').value.trim();
+                        const bio = document.getElementById('teacher-profile-bio').value.trim();
+
+                        console.log('[DEBUG] Save teacher profile clicked');
+                        console.log('[DEBUG] currentUser:', currentUser ? { uid: currentUser.uid, email: currentUser.email } : null);
+                        console.log('[DEBUG] Form values:', { name, lastname, phone, specialization, department, bio });
+
+                        if (!name) {
+                            showNotification('El nombre es requerido', 'warning');
+                            return;
+                        }
+
+                        if (!currentUser || !currentUser.uid) {
+                            console.error('[ERROR] currentUser not properly initialized:', currentUser);
+                            showNotification('Error: Sesión no válida. Por favor, recarga la página.', 'error');
+                            return;
+                        }
+
+                        const updateData = {
+                            name: name,
+                            lastname: lastname,
+                            phone: phone,
+                            specialization: specialization,
+                            department: department,
+                            bio: bio,
+                            updatedAt: firebase.database.ServerValue.TIMESTAMP
+                        };
+
+                        console.log('[DEBUG] Updating teacher profile with data:', updateData);
+                        
+                        await database.ref('users/' + currentUser.uid).update(updateData);
+
+                        // Update header display
+                        const displayName = document.getElementById('teacher-profile-display-name');
+                        if (displayName) {
+                            displayName.textContent = (name + ' ' + lastname).trim();
+                        }
+
+                        // Reload user data in the main header
+                        loadUserData();
+
+                        console.log('[SUCCESS] Teacher profile updated for user:', currentUser.uid);
+                        showNotification('Perfil actualizado exitosamente', 'success');
+                        document.getElementById('teacher-profile-modal').classList.remove('active');
+                    } catch (error) {
+                        console.error('[ERROR] Error saving teacher profile:', error);
+                        showNotification('Error al guardar el perfil: ' + error.message, 'error');
+                    } finally {
+                        showLoading(false);
+                    }
+                });
+            }
+
+            const logoutBtnTeacherProfile = document.getElementById('logout-btn-teacher-profile');
+            if (logoutBtnTeacherProfile) {
+                logoutBtnTeacherProfile.addEventListener('click', () => {
+                    document.getElementById('teacher-profile-modal').classList.remove('active');
+                    handleLogout();
+                });
+            }
+
+            const teacherProfileModal = document.getElementById('teacher-profile-modal');
+            if (teacherProfileModal) {
+                teacherProfileModal.addEventListener('click', (e) => {
+                    if (e.target === teacherProfileModal) {
+                        teacherProfileModal.classList.remove('active');
+                    }
+                });
+            }
+
+            // Profile Tab Navigation
+            const profileTabButtons = document.querySelectorAll('.profile-tab-btn');
+            profileTabButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const targetTab = btn.getAttribute('data-tab');
+                    
+                    // Remove active class from all buttons and contents
+                    profileTabButtons.forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.profile-tab-content').forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    
+                    // Add active class to clicked button
+                    btn.classList.add('active');
+                    
+                    // Show target content
+                    const targetContent = document.querySelector(`.profile-tab-content[data-tab="${targetTab}"]`);
+                    if (targetContent) {
+                        targetContent.style.display = 'block';
+                    }
+                    
+                    console.log('[DEBUG] Switched to profile tab:', targetTab);
+                });
+            });
+
             const manualForm = document.getElementById('manual-attendance-form');
             if (manualForm) manualForm.addEventListener('submit', marcarAsistenciaManual);
             
@@ -3995,6 +4581,241 @@
             cargarEstudiantes();
             iniciarSSE();
         });
+
+        // View Student Profile
+        window.viewStudentProfile = async (studentId) => {
+            if (!studentId) return;
+            
+            try {
+                const student = estudiantes.find(e => e.id === studentId);
+                if (!student) {
+                    showNotification('No se encontró el estudiante', 'error');
+                    return;
+                }
+                
+                // Fill profile information
+                document.getElementById('student-profile-name').textContent = `${student.names || ''} ${student.lastnames || ''}`;
+                document.getElementById('profile-view-names').textContent = student.names || '-';
+                document.getElementById('profile-view-lastnames').textContent = student.lastnames || '-';
+                document.getElementById('profile-view-cycle').textContent = student.cycle || student.ciclo || '-';
+                document.getElementById('profile-view-course').textContent = student.course || student.curso || '-';
+                
+                // Load attendance statistics
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceRef = database.ref('attendance');
+                const attendanceSnapshot = await attendanceRef.once('value');
+                const allAttendance = attendanceSnapshot.val() || {};
+                
+                let presentCount = 0;
+                let absentCount = 0;
+                let attendanceHistory = [];
+                
+                // Count attendance records
+                Object.keys(allAttendance).sort().reverse().slice(0, 10).forEach(date => {
+                    const dayAttendance = allAttendance[date];
+                    if (dayAttendance && dayAttendance[studentId]) {
+                        const record = dayAttendance[studentId];
+                        attendanceHistory.push({ date, status: record.status, course: record.course });
+                        
+                        if (record.status === 'present' || record.status === 'late') {
+                            presentCount++;
+                        } else if (record.status === 'absent') {
+                            absentCount++;
+                        }
+                    }
+                });
+                
+                const totalDays = presentCount + absentCount;
+                const percentage = totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 0;
+                
+                document.getElementById('profile-view-present').textContent = presentCount;
+                document.getElementById('profile-view-absent').textContent = absentCount;
+                document.getElementById('profile-view-percentage').textContent = percentage + '%';
+                
+                // Load attendance history
+                const historyHtml = attendanceHistory.length > 0 
+                    ? attendanceHistory.map(h => {
+                        const statusText = h.status === 'present' ? '✓ Presente' : 
+                                         h.status === 'late' ? '⏰ Tardío' :
+                                         h.status === 'excused' ? '✓ Justificado' : '✗ Ausente';
+                        const statusColor = h.status === 'present' || h.status === 'late' ? 'var(--success)' : 'var(--danger)';
+                        return `<div style="padding: 10px; border-bottom: 1px solid var(--gray-light); display: flex; justify-content: space-between;">
+                                  <span>${h.date}</span>
+                                  <span style="color: ${statusColor}; font-weight: 600;">${statusText}</span>
+                                </div>`;
+                    }).join('')
+                    : '<div style="padding: 20px; text-align: center; color: var(--gray);">Sin registros de asistencia</div>';
+                
+                document.getElementById('profile-view-history').innerHTML = historyHtml;
+                
+                // Load notes
+                const notesSnapshot = await database.ref(`students/${studentId}/notes`).once('value');
+                document.getElementById('profile-view-notes').value = notesSnapshot.val() || '';
+                
+                // Show modal
+                document.getElementById('student-profile-view-modal').classList.add('active');
+                
+                // Store current student ID for saving notes
+                window.currentStudentProfileId = studentId;
+            } catch (error) {
+                console.error('Error viewing student profile:', error);
+                showNotification('Error al cargar el perfil del estudiante', 'error');
+            }
+        };
+
+        // Show Teacher Profile
+        window.showTeacherProfile = async () => {
+            try {
+                // Check if user is authenticated
+                let user = currentUser;
+                if (!user) {
+                    user = firebase.auth().currentUser;
+                }
+                
+                if (!user) {
+                    showNotification('No estás autenticado', 'error');
+                    return;
+                }
+
+                showLoading(true);
+                
+                console.log('[DEBUG] Loading teacher profile for user:', user.uid);
+                
+                // Load teacher data from users collection
+                const teacherSnapshot = await database.ref('users/' + user.uid).once('value');
+                const teacherData = teacherSnapshot.val();
+                
+                console.log('[DEBUG] Teacher data loaded:', teacherData);
+                
+                // Populate header information
+                const displayName = document.getElementById('teacher-profile-display-name');
+                const displayEmail = document.getElementById('teacher-profile-display-email');
+                if (displayName) {
+                    const fullName = (teacherData?.name || '') + ' ' + (teacherData?.lastname || '');
+                    displayName.textContent = fullName.trim() || 'Docente';
+                }
+                if (displayEmail) {
+                    displayEmail.textContent = teacherData?.email || user.email || 'correo@ejemplo.com';
+                }
+                
+                // Populate Personal Tab
+                const nameInput = document.getElementById('teacher-profile-name');
+                const lastnameInput = document.getElementById('teacher-profile-lastname');
+                const emailInput = document.getElementById('teacher-profile-email');
+                const phoneInput = document.getElementById('teacher-profile-phone');
+                
+                if (nameInput) nameInput.value = teacherData?.name || user.displayName || '';
+                if (lastnameInput) lastnameInput.value = teacherData?.lastname || '';
+                if (emailInput) emailInput.value = teacherData?.email || user.email || '';
+                if (phoneInput) phoneInput.value = teacherData?.phone || '';
+                
+                // Populate Professional Tab
+                const specializationInput = document.getElementById('teacher-profile-specialization');
+                const departmentInput = document.getElementById('teacher-profile-department');
+                const bioInput = document.getElementById('teacher-profile-bio');
+                
+                if (specializationInput) specializationInput.value = teacherData?.specialization || '';
+                if (departmentInput) departmentInput.value = teacherData?.department || '';
+                if (bioInput) bioInput.value = teacherData?.bio || '';
+                
+                // Load student count for this teacher
+                const studentsRef = database.ref('students');
+                const studentsSnapshot = await studentsRef.once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                const teacherStudents = Object.keys(allStudents)
+                    .filter(id => allStudents[id].teacherId === user.uid)
+                    .map(id => ({ id, ...allStudents[id] }));
+                
+                const studentsCountElement = document.getElementById('teacher-students-count');
+                if (studentsCountElement) {
+                    studentsCountElement.textContent = teacherStudents.length;
+                }
+                
+                // Load attendance count marked by this teacher
+                const attendanceRef = database.ref('attendance');
+                const attendanceSnapshot = await attendanceRef.once('value');
+                const allAttendance = attendanceSnapshot.val() || {};
+                let attendanceCount = 0;
+                
+                Object.keys(allAttendance).forEach(date => {
+                    const dayAttendance = allAttendance[date];
+                    if (dayAttendance && typeof dayAttendance === 'object') {
+                        Object.keys(dayAttendance).forEach(studentId => {
+                            const record = dayAttendance[studentId];
+                            // Count attendance for teacher's students
+                            if (record && teacherStudents.some(s => s.id === studentId)) {
+                                attendanceCount++;
+                            }
+                        });
+                    }
+                });
+                
+                const attendanceCountElement = document.getElementById('teacher-attendance-count');
+                if (attendanceCountElement) {
+                    attendanceCountElement.textContent = attendanceCount;
+                }
+                
+                // Load courses list
+                const coursesSet = new Set();
+                teacherStudents.forEach(student => {
+                    if (student.course || student.curso) {
+                        coursesSet.add(student.course || student.curso);
+                    }
+                });
+                
+                const coursesList = document.getElementById('teacher-courses-list');
+                if (coursesList) {
+                    if (coursesSet.size > 0) {
+                        let coursesHTML = '';
+                        coursesSet.forEach(course => {
+                            const courseStudents = teacherStudents.filter(s => (s.course || s.curso) === course);
+                            coursesHTML += `
+                                <div style="background: var(--gray-light); padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--dark);">${course}</div>
+                                        <div style="font-size: 0.8rem; color: var(--gray);">${courseStudents.length} estudiantes</div>
+                                    </div>
+                                    <div style="background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem;">
+                                        ${courseStudents.length}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        coursesList.innerHTML = coursesHTML;
+                    }
+                }
+                
+                // Load member since and last update
+                const memberSinceElement = document.getElementById('teacher-member-since');
+                const lastUpdateElement = document.getElementById('teacher-last-update');
+                
+                if (memberSinceElement && teacherData?.createdAt) {
+                    const createdDate = new Date(teacherData.createdAt);
+                    memberSinceElement.textContent = createdDate.toLocaleDateString('es-ES');
+                }
+                
+                if (lastUpdateElement && teacherData?.updatedAt) {
+                    const updatedDate = new Date(teacherData.updatedAt);
+                    lastUpdateElement.textContent = updatedDate.toLocaleDateString('es-ES');
+                } else if (lastUpdateElement) {
+                    lastUpdateElement.textContent = 'Nunca actualizado';
+                }
+                
+                console.log('[SUCCESS] Teacher profile loaded successfully');
+                
+                // Show modal
+                const modal = document.getElementById('teacher-profile-modal');
+                if (modal) {
+                    modal.classList.add('active');
+                }
+                
+            } catch (error) {
+                console.error('Error loading teacher profile:', error);
+                showNotification('Error al cargar el perfil: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        };
 
         // Expose edit/delete for inline buttons
         window.editStudent = (id) => {
