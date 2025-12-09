@@ -1959,21 +1959,44 @@
         // Load Dashboard Data
         async function loadDashboardData() {
             try {
-                // Load students count
+                const teacherId = currentUser ? currentUser.uid : null;
+                
+                // Load students count - filter by teacher
                 const studentsSnapshot = await database.ref('students').once('value');
-                const students = studentsSnapshot.val() || {};
-                const studentCount = Object.keys(students).length;
+                const allStudents = studentsSnapshot.val() || {};
+                
+                // Filter students by teacherId
+                const teacherStudents = teacherId 
+                    ? Object.keys(allStudents).filter(id => allStudents[id].teacherId === teacherId)
+                    : Object.keys(allStudents);
+                
+                const studentCount = teacherStudents.length;
                 document.getElementById('total-students').textContent = studentCount;
 
-                // Load today's attendance
+                // Load today's attendance - filter by teacher
                 const today = new Date().toISOString().split('T')[0];
                 const attendanceRef = database.ref('attendance/' + today);
                 const attendanceSnapshot = await attendanceRef.once('value');
-                const todayAttendance = attendanceSnapshot.val() || {};
+                const allTodayAttendance = attendanceSnapshot.val() || {};
                 
+                // Filter attendance by teacherId and studentId
                 let presentCount = 0;
-                Object.values(todayAttendance).forEach(record => {
-                    if (record.status === 'present') presentCount++;
+                let totalAttendance = 0;
+                
+                Object.entries(allTodayAttendance).forEach(([studentId, record]) => {
+                    // Only count if student belongs to this teacher
+                    const student = allStudents[studentId];
+                    if (teacherId && student && student.teacherId !== teacherId) {
+                        return; // Skip students not belonging to this teacher
+                    }
+                    if (!teacherId && student && student.teacherId) {
+                        return; // If not logged in, skip students with teacherId
+                    }
+                    
+                    totalAttendance++;
+                    if (record.status === 'present') {
+                        presentCount++;
+                    }
                 });
 
                 const attendancePercentage = studentCount > 0 
@@ -1984,12 +2007,17 @@
                 document.getElementById('present-count').textContent = presentCount;
                 document.getElementById('absent-count').textContent = studentCount - presentCount;
 
-                // Load courses count
-                const coursesSnapshot = await database.ref('courses').once('value');
-                const courses = coursesSnapshot.val() || {};
-                document.getElementById('active-courses').textContent = Object.keys(courses).length;
+                // Load courses count - count unique courses from teacher's students
+                const teacherCourses = new Set();
+                teacherStudents.forEach(id => {
+                    const student = allStudents[id];
+                    if (student && (student.course || student.curso)) {
+                        teacherCourses.add(student.course || student.curso);
+                    }
+                });
+                document.getElementById('active-courses').textContent = teacherCourses.size;
 
-                // Load recent activity
+                // Load recent activity - filter by teacher
                 loadRecentActivity();
 
             } catch (error) {
@@ -1997,37 +2025,103 @@
             }
         }
 
-        // Load Recent Activity
+        // Load Recent Activity - filtered by teacher
         async function loadRecentActivity() {
             try {
-                const activityRef = database.ref('attendance').limitToLast(10);
+                const teacherId = currentUser ? currentUser.uid : null;
+                
+                // Get teacher's students first
+                const studentsSnapshot = await database.ref('students').once('value');
+                const allStudents = studentsSnapshot.val() || {};
+                const teacherStudentIds = teacherId 
+                    ? Object.keys(allStudents).filter(id => allStudents[id].teacherId === teacherId)
+                    : [];
+                
+                if (teacherId && teacherStudentIds.length === 0) {
+                    const activityContainer = document.getElementById('recent-activity');
+                    activityContainer.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <p>No hay actividad reciente</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const activityRef = database.ref('attendance');
                 const snapshot = await activityRef.once('value');
                 const activityContainer = document.getElementById('recent-activity');
                 
                 if (!snapshot.exists()) {
+                    activityContainer.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <p>No hay actividad reciente</p>
+                        </div>
+                    `;
                     return;
                 }
 
-                let activityHTML = '';
+                let activities = [];
                 snapshot.forEach((dateSnapshot) => {
                     const date = dateSnapshot.key;
                     dateSnapshot.forEach((recordSnapshot) => {
                         const record = recordSnapshot.val();
-                        activityHTML += `
-                            <div style="padding: 12px; border-bottom: 1px solid var(--gray-light); display: flex; align-items: center; gap: 15px;">
-                                <div style="width: 8px; height: 8px; border-radius: 50%; background: ${record.status === 'present' ? 'var(--success)' : 'var(--danger)'};"></div>
-                                <div>
-                                    <div style="font-weight: 500;">${record.studentName || 'Estudiante'}</div>
-                                    <div style="font-size: 0.85rem; color: var(--gray);">${date} - ${record.course || ''}</div>
-                                </div>
-                                <div style="margin-left: auto; font-size: 0.85rem;">
-                                    <span class="status-badge ${record.status === 'present' ? 'status-present' : 'status-absent'}">
-                                        ${record.status === 'present' ? 'Presente' : 'Ausente'}
-                                    </span>
-                                </div>
-                            </div>
-                        `;
+                        const studentId = recordSnapshot.key;
+                        
+                        // Filter by teacherId
+                        if (teacherId) {
+                            // Check if student belongs to this teacher
+                            const student = allStudents[studentId];
+                            if (!student || student.teacherId !== teacherId) {
+                                return; // Skip if not this teacher's student
+                            }
+                            // Also check if record has teacherId matching
+                            if (record.teacherId && record.teacherId !== teacherId) {
+                                return; // Skip if record belongs to different teacher
+                            }
+                        } else {
+                            // If not logged in, skip students with teacherId
+                            const student = allStudents[studentId];
+                            if (student && student.teacherId) {
+                                return; // Skip students assigned to teachers
+                            }
+                        }
+                        
+                        activities.push({
+                            date,
+                            record,
+                            studentId
+                        });
                     });
+                });
+
+                // Sort by date (most recent first) and limit to 10
+                activities.sort((a, b) => {
+                    if (a.date > b.date) return -1;
+                    if (a.date < b.date) return 1;
+                    return 0;
+                });
+                activities = activities.slice(0, 10);
+
+                let activityHTML = '';
+                activities.forEach(({ date, record }) => {
+                    activityHTML += `
+                        <div style="padding: 12px; border-bottom: 1px solid var(--gray-light); display: flex; align-items: center; gap: 15px;">
+                            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${record.status === 'present' ? 'var(--success)' : 'var(--danger)'};"></div>
+                            <div>
+                                <div style="font-weight: 500;">${record.studentName || 'Estudiante'}</div>
+                                <div style="font-size: 0.85rem; color: var(--gray);">${date} - ${record.course || ''}</div>
+                            </div>
+                            <div style="margin-left: auto; font-size: 0.85rem;">
+                                <span class="status-badge ${record.status === 'present' ? 'status-present' : 'status-absent'}">
+                                    ${record.status === 'present' ? 'Presente' : 
+                                      record.status === 'late' ? 'Tardío' :
+                                      record.status === 'excused' ? 'Justificado' : 'Ausente'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
                 });
 
                 activityContainer.innerHTML = activityHTML || `
@@ -2808,9 +2902,15 @@
                 await renderListaEstudiantes();
                 // Setup real-time listener for attendance updates
                 setupAttendanceListener();
-                // update dashboard count if present
+                // update dashboard count if present - filter by teacher
                 const totalEl = document.getElementById('total-students');
-                if (totalEl) totalEl.textContent = estudiantes.length || 0;
+                if (totalEl) {
+                    const teacherId = currentUser ? currentUser.uid : null;
+                    const teacherStudents = teacherId 
+                        ? estudiantes.filter(s => s.teacherId === teacherId)
+                        : estudiantes.filter(s => !s.teacherId);
+                    totalEl.textContent = teacherStudents.length || 0;
+                }
                 // ensure cycles/courses available
                 await cargarCiclosDesdeDB();
             } catch (err) {
@@ -2838,16 +2938,21 @@
                 console.warn('Error loading attendance:', err);
             }
             
-            // Build filter options
+            // Build filter options - only from teacher's students
+            const teacherId = currentUser ? currentUser.uid : null;
+            const teacherStudents = teacherId 
+                ? estudiantes.filter(s => s.teacherId === teacherId)
+                : estudiantes.filter(s => !s.teacherId); // If not logged in, show only unassigned
+            
             if (filterCourseSelect) {
                 const selectedCourse = filterCourseSelect.value;
-                const courses = Array.from(new Set(estudiantes.map(e => e.course || e.curso).filter(Boolean)));
+                const courses = Array.from(new Set(teacherStudents.map(e => e.course || e.curso).filter(Boolean)));
                 filterCourseSelect.innerHTML = '<option value="">Todos los cursos</option>' + courses.map(c => `<option value="${c}">${c}</option>`).join('');
                 if (selectedCourse) filterCourseSelect.value = selectedCourse;
             }
             if (filterCycleSelect) {
                 const selectedCycle = filterCycleSelect.value;
-                const cycles = Array.from(new Set(estudiantes.map(e => e.cycle || e.ciclo).filter(Boolean)));
+                const cycles = Array.from(new Set(teacherStudents.map(e => e.cycle || e.ciclo).filter(Boolean)));
                 filterCycleSelect.innerHTML = '<option value="">Todos los ciclos</option>' + cycles.map(c => `<option value="${c}">${c}</option>`).join('');
                 if (selectedCycle) filterCycleSelect.value = selectedCycle;
             }
@@ -2855,11 +2960,15 @@
             const term = (searchStudentsInput?.value || '').toLowerCase();
             const courseFilter = filterCourseSelect?.value || '';
             const cycleFilter = filterCycleSelect?.value || '';
-            const teacherId = currentUser ? currentUser.uid : null;
 
             const filtered = estudiantes.filter(s => {
-                // Filter by teacher if logged in
-                const matchesTeacher = !teacherId || s.teacherId === teacherId;
+                // Filter by teacher if logged in - only show students assigned to this teacher
+                // If logged in, only show students with matching teacherId
+                // If not logged in, only show students without teacherId
+                const matchesTeacher = teacherId 
+                    ? (s.teacherId === teacherId)  // Must match exactly
+                    : (!s.teacherId);  // Only unassigned students
+                
                 const matchesTerm = !term || `${s.names || ''} ${s.lastnames || ''} ${s.id || ''} ${s.course || s.curso || ''} ${s.cycle || s.ciclo || ''}`.toLowerCase().includes(term);
                 const matchesCourse = !courseFilter || (s.course || s.curso) === courseFilter;
                 const matchesCycle = !cycleFilter || (s.cycle || s.ciclo || s.cycle) === cycleFilter;
