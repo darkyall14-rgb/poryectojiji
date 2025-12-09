@@ -1008,24 +1008,42 @@
                 
                 // Find student by userId (primary method), email, or current user UID
                 for (const [id, student] of Object.entries(allStudents)) {
-                    console.log('[DEBUG] Checking student:', { id, userId: student.userId, email: student.email });
+                    console.log('[DEBUG] Checking student:', { 
+                        id, 
+                        userId: student.userId, 
+                        email: student.email,
+                        cycle: student.cycle,
+                        ciclo: student.ciclo,
+                        course: student.course,
+                        curso: student.curso
+                    });
                     
                     // Match by userId first (most reliable)
                     if (student.userId === currentUser.uid) {
                         console.log('[DEBUG] Student matched by userId:', id);
                         studentData = { id, ...student };
+                        console.log('[DEBUG] Full student data loaded:', studentData);
                         break;
                     }
                     // Then try email
                     if (student.email === currentUser.email) {
                         console.log('[DEBUG] Student matched by email:', id);
                         studentData = { id, ...student };
+                        console.log('[DEBUG] Full student data loaded:', studentData);
                         break;
                     }
                 }
                 
                 if (studentData) {
-                    console.log('[DEBUG] Student data loaded:', { id: studentData.id, teacherId: studentData.teacherId, names: studentData.names });
+                    console.log('[DEBUG] Student data loaded:', { 
+                        id: studentData.id, 
+                        teacherId: studentData.teacherId, 
+                        names: studentData.names,
+                        cycle: studentData.cycle,
+                        ciclo: studentData.ciclo,
+                        course: studentData.course,
+                        curso: studentData.curso
+                    });
                 } else {
                     console.warn('[WARN] No student data found for user:', currentUser?.uid);
                 }
@@ -2568,13 +2586,27 @@
         function showStudentProfile() {
             profileModal.classList.add('active');
             
-            // Ensure studentData is loaded before showing profile
-            if (!studentData || !studentData.names) {
-                loadStudentData().then(() => {
-                    populateProfileForm();
+            // Refresh studentData from Firebase before showing profile
+            if (currentUser && currentUser.uid) {
+                database.ref('students').once('value', (snapshot) => {
+                    const allStudents = snapshot.val() || {};
+                    
+                    // Find student by userId or email
+                    for (const [id, student] of Object.entries(allStudents)) {
+                        if (student.userId === currentUser.uid || student.email === currentUser.email) {
+                            console.log('[DEBUG] Refreshing student data from Firebase:', { 
+                                id, 
+                                cycle: student.cycle,
+                                ciclo: student.ciclo,
+                                course: student.course,
+                                curso: student.curso
+                            });
+                            studentData = { id, ...student };
+                            populateProfileForm();
+                            break;
+                        }
+                    }
                 });
-            } else {
-                populateProfileForm();
             }
         }
 
@@ -2589,17 +2621,37 @@
                 names: studentData.names,
                 cycle: studentData.cycle,
                 course: studentData.course,
+                ciclo: studentData.ciclo,
+                curso: studentData.curso,
                 teacherId: studentData.teacherId
             });
             
             // Load current data into form
-            document.getElementById('profile-names').value = studentData.names || '';
-            document.getElementById('profile-lastnames').value = studentData.lastnames || '';
-            document.getElementById('profile-email').value = studentData.email || currentUser?.email || '';
-            document.getElementById('profile-cycle').value = studentData.cycle || studentData.ciclo || '';
-            document.getElementById('profile-course').value = studentData.course || studentData.curso || '';
+            const profileNamesEl = document.getElementById('profile-names');
+            const profileLastnamesEl = document.getElementById('profile-lastnames');
+            const profileEmailEl = document.getElementById('profile-email');
+            const profileCycleEl = document.getElementById('profile-cycle');
+            const profileCourseEl = document.getElementById('profile-course');
             
-            console.log('[DEBUG] Profile form populated - Cycle:', studentData.cycle || studentData.ciclo || 'N/A', 'Course:', studentData.course || studentData.curso || 'N/A');
+            if (profileNamesEl) profileNamesEl.value = studentData.names || '';
+            if (profileLastnamesEl) profileLastnamesEl.value = studentData.lastnames || '';
+            if (profileEmailEl) profileEmailEl.value = studentData.email || currentUser?.email || '';
+            
+            // For cycle: try cycle first, then ciclo, then empty
+            const cycleValue = studentData.cycle || studentData.ciclo || '';
+            if (profileCycleEl) {
+                profileCycleEl.value = cycleValue;
+                console.log('[DEBUG] Set cycle to:', cycleValue);
+            }
+            
+            // For course: try course first, then curso, then empty
+            const courseValue = studentData.course || studentData.curso || '';
+            if (profileCourseEl) {
+                profileCourseEl.value = courseValue;
+                console.log('[DEBUG] Set course to:', courseValue);
+            }
+            
+            console.log('[DEBUG] Profile form populated - Cycle:', cycleValue || 'N/A', 'Course:', courseValue || 'N/A');
             
             // Load teacher name
             if (studentData.teacherId) {
