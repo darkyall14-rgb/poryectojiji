@@ -273,6 +273,15 @@ app.get('/', (req, res) => {
   }
 });
 
+// Servir student.html
+app.get('/student.html', (req, res) => {
+  try {
+    res.sendFile(path.join(__dirname, 'src', 'views', 'student.html'));
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo enviar student.html', message: err.message });
+  }
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.originalUrl });
