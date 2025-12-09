@@ -1819,9 +1819,8 @@
             });
 
             document.getElementById('entry-student').addEventListener('click', () => {
-                showNotification('Modo estudiante activado', 'info');
-                // For demo purposes, show app as student
-                showApp();
+                // Redirect to student page
+                window.location.href = 'student.html';
             });
 
             // Login/Register Navigation
